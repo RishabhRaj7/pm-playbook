@@ -1,0 +1,7 @@
+<!-- Maskable icon: design lives within the inner 80% safe zone (410x410 centred) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#090A09"/>
+  <rect x="51" y="51" width="410" height="410" rx="0" fill="#C6FF3C" opacity="0.08"/>
+  <rect x="240" y="128" width="32" height="256" rx="16" fill="#C6FF3C"/>
+  <rect x="152" y="240" width="208" height="32" rx="16" fill="#C6FF3C" opacity="0.35"/>
+</svg>

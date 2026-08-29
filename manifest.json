@@ -1,0 +1,53 @@
+{
+  "name": "The PM Playbook",
+  "short_name": "PM Playbook",
+  "description": "Product management, end to end: twelve topics, 55 frameworks, 65 quiz questions.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090A09",
+  "theme_color": "#090A09",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "icons/icon-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "label": "Home — the product loop",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "A/B Testing",
+      "url": "./#/ab-testing",
+      "description": "Experimentation from hypothesis to decision"
+    },
+    {
+      "name": "Frameworks",
+      "url": "./#/fw-diagnosis",
+      "description": "55 PM frameworks, searchable"
+    },
+    {
+      "name": "Metrics & Analytics",
+      "url": "./#/metrics",
+      "description": "Metrics, funnels, and north-star thinking"
+    }
+  ]
+}

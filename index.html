@@ -1,13 +1,27 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="night">
 <head>
+<script>
+(function(){
+  const theme=localStorage.getItem("pm:theme");
+  if(theme==="day"||theme==="night") document.documentElement.setAttribute("data-theme",theme);
+  const last=localStorage.getItem("pm:last-route");
+  if(last&&!location.hash) history.replaceState(null,"",last);
+})();
+</script>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>The PM Playbook — product management, end to end</title>
 <meta name="description" content="A visual, self-contained reference for product managers: experimentation, discovery, metrics, prioritisation, strategy, specs, pricing, analytics, launch and the frameworks worth knowing.">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#090A09">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PM Playbook">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23C6FF3C'/><rect x='3' y='3' width='26' height='26' rx='4' fill='%23090A09'/><rect x='15' y='6' width='2' height='20' rx='1' fill='%23C6FF3C'/></svg>">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icons/icon-192.svg">
 <meta property="og:type" content="website">
 <meta property="og:title" content="The PM Playbook">
 <meta property="og:description" content="Product management, end to end: experimentation, discovery, metrics, prioritisation, strategy, specs, pricing, analytics, launch and 55 frameworks — with diagrams, worked examples and quizzes.">
@@ -1060,12 +1074,15 @@ section[id]{scroll-margin-top:calc(var(--tbh) + 20px)}
   background:none;border:1px solid transparent;border-radius:6px;padding:.5rem .55rem;cursor:pointer;color:var(--text-dim)}
 .railHome:hover{background:var(--ink-2);color:var(--text)}
 .railHome[aria-current="true"]{background:var(--ink-3);color:var(--text);box-shadow:inset 2px 0 0 var(--signal)}
+.app.is-home .tb-crumb{display:none}
+.app.is-home .topbar{grid-template-columns:minmax(0,1fr) auto}
 .rh-n{font-family:var(--f-mono);font-size:.64rem;color:var(--signal)}
 .rh-t{font-size:.88rem;font-weight:600;letter-spacing:-.01em;line-height:1.15}
 .rh-t em{display:block;font-style:normal;font-family:var(--f-mono);font-size:.58rem;letter-spacing:.06em;
   color:var(--muted);font-weight:400;margin-top:.1rem}
 
 .rail-sec{display:flex;flex-direction:column;gap:.15rem}
+#tocBox[hidden]{display:none !important}
 .rail-h{font-family:var(--f-mono);font-size:.58rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
   padding:0 .4rem .3rem;margin:.2rem 0 .1rem;display:flex;justify-content:space-between;align-items:baseline;
   border-bottom:1px solid var(--line-soft)}
@@ -1123,6 +1140,8 @@ section[id]{scroll-margin-top:calc(var(--tbh) + 20px)}
   .mbar{display:none !important}
   .app{grid-template-columns:1fr}
   .rail{display:flex;position:fixed;left:0;top:0;bottom:0;width:min(320px,86vw);z-index:70;
+    padding-top:max(1.1rem,env(safe-area-inset-top));
+    padding-bottom:max(1rem,env(safe-area-inset-bottom));
     transform:translateX(-102%);transition:transform .3s var(--ease);
     background:var(--ink-1);border-right:1px solid var(--line);height:100%}
   .app.navopen .rail{transform:none;box-shadow:0 0 60px rgba(0,0,0,.7)}
@@ -1131,7 +1150,9 @@ section[id]{scroll-margin-top:calc(var(--tbh) + 20px)}
   .tb-burger{display:grid;gap:3.5px;width:30px;height:28px;place-content:center;background:none;border:0;cursor:pointer;padding:0}
   .tb-burger i{display:block;width:17px;height:1.5px;background:var(--text-dim);border-radius:2px;transition:.2s}
   .tb-burger:hover i{background:var(--signal)}
-  .topbar{grid-template-columns:auto minmax(0,1fr) auto;gap:.6rem}
+  .topbar{grid-template-columns:auto minmax(0,1fr) auto;gap:.6rem;
+    padding-left:max(1.1rem,env(safe-area-inset-left));
+    padding-right:max(1.1rem,env(safe-area-inset-right));}
   .tb-sec{display:none}
   .tb-count{display:none}
   .tb-crumb .tb-root,.tb-crumb .tb-sep:first-of-type{display:none}
@@ -1272,7 +1293,7 @@ html[data-theme="day"] .tb-sw button[aria-pressed="true"]::after{background:#fff
     <div class="rail-quick">
       <button class="railHome" id="homeBtn" aria-current="true">
         <span class="rh-n">00</span>
-        <span class="rh-t">Home<em>the loop &amp; full index</em></span>
+        <span class="rh-t">The loop<em>all twelve topics</em></span>
       </button>
       <button class="railSearch" id="searchBtn">
         <span aria-hidden="true" style="color:var(--signal)">&#8981;</span>
@@ -1345,7 +1366,7 @@ html[data-theme="day"] .tb-sw button[aria-pressed="true"]::after{background:#fff
           <div>
             <h4>Browse</h4>
             <ul>
-              <li><button data-goto="home">Home &amp; full index</button></li>
+              <li><button data-goto="home">All topics</button></li>
               <li><button data-goto="ab-testing">01 · A/B Testing</button></li>
               <li><button data-goto="metrics">03 · Metrics &amp; North Star</button></li>
               <li><button data-goto="fw-diagnosis">10 · Frameworks — Diagnosis</button></li>
@@ -1808,8 +1829,15 @@ function buildNav(){
   sel.addEventListener("change",e=>go(e.target.value));
 }
 function go(id){
+  if(id==="home"){
+    currentTopic=null;
+    localStorage.setItem("pm:last-route","#/home");
+    renderHome();
+    return;
+  }
   const t=TOPICS.find(x=>x.id===id); if(!t) return;
   currentTopic=t;
+  localStorage.setItem("pm:last-route","#/"+id);
   document.querySelectorAll(".topic").forEach(b=>b.setAttribute("aria-current",String(b.dataset.id===id)));
   document.getElementById("mobileTopic").value=id;
   renderTopic(t);
@@ -1828,6 +1856,7 @@ function toggleTheme(){
   btn.setAttribute("aria-pressed", String(!day));
   document.getElementById("themeLabel").textContent = day?"Night lab":"Daylight";
   document.getElementById("themeIcon").textContent = day?"◐":"◑";
+  localStorage.setItem("pm:theme",day?"night":"day");
 }
 document.getElementById("themeBtn").addEventListener("click",toggleTheme);
 document.getElementById("themeBtnM").addEventListener("click",toggleTheme);
@@ -2248,7 +2277,11 @@ function route(){
   renderTopic(t);
   if(sec) setTimeout(()=>{ const el=document.getElementById(sec); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },80);
 }
-function go(id,sec){ location.hash="#/"+id+(sec?"/"+sec:""); if(!sec) window.scrollTo({top:0,behavior:"auto"}); }
+function go(id,sec){
+  localStorage.setItem("pm:last-route","#/"+id+(sec?"/"+sec:""));
+  location.hash="#/"+id+(sec?"/"+sec:"");
+  if(!sec) window.scrollTo({top:0,behavior:"auto"});
+}
 
 /* ---------- navigation ---------- */
 function buildNav(){
@@ -2269,6 +2302,7 @@ function buildNav(){
   document.getElementById("homeBtn").addEventListener("click",()=>go("home"));
 }
 function markNav(id){
+  document.getElementById("app").classList.toggle("is-home",id==="home");
   document.querySelectorAll(".topic").forEach(b=>b.setAttribute("aria-current",String(b.dataset.id===id)));
   document.getElementById("homeBtn").setAttribute("aria-current",String(id==="home"));
   const sel=document.getElementById("mobileTopic"); if(sel) sel.value=id;
@@ -2283,6 +2317,7 @@ function buildToc(topic){
 /* ---------- topic render (overrides the core version) ---------- */
 function renderTopic(topic){
   currentTopic=topic; loadTopic(topic);
+  localStorage.setItem("pm:last-route","#/"+topic.id);
   const root=document.getElementById("topicRoot");
   root.innerHTML=(topic.sections||[]).map(s=>(RENDERERS[s.type]||(()=>""))(s)).join('')+topicNav(topic);
   document.getElementById("footNote").textContent="Topic "+topic.n+" — "+topic.title;
@@ -3642,7 +3677,7 @@ function renderHome(){
 
   document.getElementById("footNote").textContent="The PM Playbook — a working reference for product managers.";
   document.title="The PM Playbook — product management, end to end";
-  currentTopic=null; clearHits(); markNav("home");
+  currentTopic=null; localStorage.setItem("pm:last-route","#/home"); clearHits(); markNav("home");
   initHome(); observeReveals(); onScroll();
   window.scrollTo({top:0,behavior:"auto"});
 }
@@ -4629,6 +4664,7 @@ function stepTopic(d){
 }
 
 function markNav(id){
+  document.getElementById("app").classList.toggle("is-home",id==="home");
   document.querySelectorAll(".topic").forEach(b=>b.setAttribute("aria-current",String(b.dataset.id===id)));
   document.getElementById("homeBtn").setAttribute("aria-current",String(id==="home"));
   document.getElementById("tocBox").hidden = id==="home";
@@ -4728,6 +4764,7 @@ function accFavicon(col){
 function applyAccent(id){
   const a=ACCENTS.find(x=>x.id===id)||ACCENTS[0];
   ACCENT=a.id;
+  localStorage.setItem("pm:accent",ACCENT);
   const day=document.documentElement.getAttribute("data-theme")==="day";
   const col=day?a.d:a.n, ink=day?a.di:a.ni;
   const r=document.documentElement.style;
@@ -4781,7 +4818,7 @@ function initAccent(){
     const b=document.getElementById(id);
     if(b) b.addEventListener("click",()=>setTimeout(()=>{ applyAccent(ACCENT); paintSwatches(); },0));
   });
-  applyAccent(ACCENT);
+  applyAccent(localStorage.getItem("pm:accent")||ACCENT);
 }
 </script>
 <script>
@@ -8306,6 +8343,31 @@ PM.register({
 });
 })();
 </script>
-<script>PM.boot(); initAccent();</script>
+<script>
+PM.boot(); initAccent();
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
+</script>
+<script>
+(function(){
+  const route=()=>location.hash|| (currentTopic?"#/"+currentTopic.id:"#/home");
+  let saveTimer;
+  function save(){
+    localStorage.setItem("pm:last-route",route());
+    localStorage.setItem("pm:last-scroll",JSON.stringify({route:route(),y:window.scrollY}));
+  }
+  window.addEventListener("scroll",()=>{
+    clearTimeout(saveTimer); saveTimer=setTimeout(save,120);
+  },{passive:true});
+  window.addEventListener("hashchange",()=>setTimeout(save,120));
+  window.addEventListener("pagehide",save);
+  window.addEventListener("load",()=>{
+    let saved;
+    try{ saved=JSON.parse(localStorage.getItem("pm:last-scroll")||"null"); }catch(e){ saved=null; }
+    if(saved&&saved.route===route()&&saved.y>0) setTimeout(()=>window.scrollTo({top:saved.y,behavior:"auto"}),180);
+  });
+})();
+</script>
 </body>
 </html>
