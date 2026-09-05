@@ -344,9 +344,9 @@ function Cards({ go }: { go: Go }) {
                 </div>
               </div>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <button className="btn border-bad/50 hover:border-bad" disabled={!flipped} onClick={() => mark(false)}>← Again</button>
+                <button className="btn border-bad/50 hover:border-bad" onClick={() => mark(false)}>← Again</button>
                 <button className="btn" onClick={() => setFlipped((f) => !f)}>{flipped ? "Hide" : "Reveal"} <kbd className="ml-1">space</kbd></button>
-                <button className="btn btn-key" disabled={!flipped} onClick={() => mark(true)}>Got it →</button>
+                <button className="btn btn-key" onClick={() => mark(true)}>Got it →</button>
               </div>
             </>
           ) : (
