@@ -4,6 +4,7 @@ import type { Case, Framework, Section, Step, Term, Topic } from "@/data";
 import { STATS } from "@/data";
 import Viz from "./Viz";
 import { CaseChart, ToolFor } from "./Tools";
+import { useStore } from "@/lib/progress";
 import { cn } from "@/utils/cn";
 
 export const Html = ({ html, className, as: Tag = "span" }: { html?: string; className?: string; as?: any }) => <Tag className={className} dangerouslySetInnerHTML={{ __html: html ?? "" }} />;
@@ -336,14 +337,19 @@ export function QuizSec({ s, t }: { s: Section; t: Topic }) {
   const qs = t.quiz ?? [];
   const [i, setI] = useState(0); const [pick, setPick] = useState<number | null>(null); const [score, setScore] = useState(0); const [done, setDone] = useState(false);
   const q = qs[i];
+  const store = useStore();
+  const best = store.topics[t.id]?.quizBest;
   const choose = (k: number) => { if (pick != null) return; setPick(k); if (k === q.a) setScore((x) => x + 1); };
-  const next = () => { if (i + 1 >= qs.length) setDone(true); else { setI(i + 1); setPick(null); } };
+  const next = () => {
+    if (i + 1 >= qs.length) { setDone(true); store.recordAttempt({ kind: "topic", topic: t.id, score, total: qs.length }); store.complete(t.id, true); }
+    else { setI(i + 1); setPick(null); }
+  };
   const reset = () => { setI(0); setPick(null); setScore(0); setDone(false); };
   return (
     <section id={s.id} className="py-14 border-t border-line-soft">
       <SecHead s={s} t={t} />
       <div className="panel p-6 lg:p-8 rv max-w-3xl">
-        <div className="flex items-center justify-between mb-5"><span className="font-mono text-[.66rem] uppercase tracking-[.16em] text-muted">Question {Math.min(i + 1, qs.length)} / {qs.length}</span><span className="font-mono text-[.66rem] text-acc">score {score}</span></div>
+        <div className="flex items-center justify-between mb-5"><span className="font-mono text-[.66rem] uppercase tracking-[.16em] text-muted">Question {Math.min(i + 1, qs.length)} / {qs.length}</span><span className="flex gap-4 font-mono text-[.66rem]">{best != null && <span className="text-muted">best {best}/{qs.length}</span>}<span className="text-acc">score {score}</span></span></div>
         <div className="flex gap-1 mb-6">{qs.map((_, k) => <i key={k} className="h-1 flex-1 rounded-full transition-colors" style={{ background: k < i || done ? "var(--acc)" : k === i ? "var(--text)" : "var(--line-soft)" }} />)}</div>
         <AnimatePresence mode="wait">
           {done ? (

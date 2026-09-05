@@ -50,7 +50,22 @@ export function scrollToId(id: string, offset = 84) {
 function applyAccent(id: string) {
   const a = ACCENTS.find((x) => x.id === id) ?? ACCENTS[0];
   const day = document.documentElement.getAttribute("data-theme") === "day";
-  document.documentElement.style.setProperty("--acc", day ? a.d : a.n);
+  const acc = day ? a.d : a.n;
+  document.documentElement.style.setProperty("--acc", acc);
+  setFavicon(acc, day ? "#ffffff" : "#07080f");
+}
+
+/* favicon + theme-color follow the accent */
+export function setFavicon(acc: string, ink: string) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='${acc}'/><rect x='3' y='3' width='26' height='26' rx='5' fill='${ink}'/><rect x='15' y='6' width='2' height='20' rx='1' fill='${acc}'/></svg>`;
+  const href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
+  if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
+  link.type = "image/svg+xml";
+  link.href = href;
+  let meta = document.querySelector<HTMLMetaElement>("meta[name='theme-color']");
+  if (!meta) { meta = document.createElement("meta"); meta.name = "theme-color"; document.head.appendChild(meta); }
+  meta.content = ink;
 }
 export function useTheme() {
   const [theme, setTheme] = useState<"night" | "day">(() => (localStorage.getItem("pm:theme") as any) || "night");
