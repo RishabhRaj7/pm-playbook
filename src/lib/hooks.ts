@@ -30,13 +30,26 @@ export function useRoute() {
   const go = useCallback((topic: string | null, anchor?: string | null) => {
     const h = topic ? `#/${topic}${anchor ? "/" + anchor : ""}` : `#/${anchor ? "home/" + anchor : ""}`;
     if (h === window.location.hash) {
-      if (anchor) scrollToId(anchor);
+      // already here: scroll to the anchor if it is a real element, otherwise to the top
+      if (anchor && document.getElementById(anchor)) scrollToId(anchor);
       else window.scrollTo({ top: 0, behavior: "smooth" });
+      // make sure React state agrees with the URL even if a replaceHash left it stale
+      setRoute((r) => { const n = parseHash(h); return r.topic === n.topic && r.anchor === n.anchor ? r : n; });
       return;
     }
     window.location.hash = h;
   }, []);
   return { route, go };
+}
+
+/* Update the hash without adding a history entry, but still let `useRoute`
+   (and anything else listening) know — `history.replaceState` alone fires no event. */
+export function replaceHash(h: string) {
+  if (window.location.hash === h) return;
+  const oldURL = window.location.href;
+  history.replaceState(null, "", h);
+  try { window.dispatchEvent(new HashChangeEvent("hashchange", { oldURL, newURL: window.location.href })); }
+  catch { window.dispatchEvent(new Event("hashchange")); }
 }
 
 export function scrollToId(id: string, offset = 84) {
@@ -80,15 +93,73 @@ export function useTheme() {
 }
 
 /* ---------- scroll reveal (.rv -> .in) ---------- */
+/* ---------- scroll reveal ----------
+   `.rv` elements start invisible and get `.in` once they scroll into view.
+   Content is frequently mounted *after* the owning component's effect has
+   run (AnimatePresence `mode="wait"` delays the new tree until the old one
+   has exited; tabs, drills and mock cards swap sub-trees on click), so a
+   one-shot querySelectorAll misses those nodes and they stay at opacity 0.
+   We therefore keep one IntersectionObserver alive and feed it every `.rv`
+   node that appears, via a MutationObserver on the document. */
+let revealIO: IntersectionObserver | null = null;
+let revealMO: MutationObserver | null = null;
+let revealSeen = new WeakSet<Element>();
+let revealUsers = 0;
+
+const revealNow = (el: HTMLElement) => el.classList.add("in");
+
+function observeReveal(root: ParentNode | HTMLElement) {
+  const list: HTMLElement[] = [];
+  if (root instanceof HTMLElement && root.classList.contains("rv") && !root.classList.contains("in")) list.push(root);
+  root.querySelectorAll?.<HTMLElement>(".rv:not(.in)").forEach((e) => list.push(e));
+  if (!list.length) return;
+  if (!revealIO) { list.forEach(revealNow); return; }
+  for (const el of list) {
+    if (revealSeen.has(el)) continue;
+    revealSeen.add(el);
+    revealIO.observe(el);
+  }
+}
+
+function startReveal() {
+  if (!("IntersectionObserver" in window) || !("MutationObserver" in window)) { observeReveal(document); return; }
+  revealSeen = new WeakSet<Element>();
+  revealIO = new IntersectionObserver((entries) => {
+    for (const en of entries) if (en.isIntersecting) { revealNow(en.target as HTMLElement); revealIO?.unobserve(en.target); }
+  }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
+  revealMO = new MutationObserver((muts) => {
+    for (const m of muts) m.addedNodes.forEach((n) => { if (n.nodeType === 1) observeReveal(n as HTMLElement); });
+  });
+  revealMO.observe(document.body, { childList: true, subtree: true });
+  observeReveal(document);
+}
+
+function stopReveal() {
+  revealIO?.disconnect(); revealMO?.disconnect();
+  revealIO = null; revealMO = null;
+}
+
+/* safety net: anything still hidden after the entrance window is shown outright,
+   so a missed intersection can never leave a screen blank */
+function flushStaleReveals() {
+  document.querySelectorAll<HTMLElement>(".rv:not(.in)").forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.bottom >= 0 && r.top <= window.innerHeight * 1.05) revealNow(el);
+  });
+}
+
 export function useReveal(dep?: unknown) {
   useEffect(() => {
-    const els = Array.from(document.querySelectorAll<HTMLElement>(".rv:not(.in)"));
-    if (!("IntersectionObserver" in window)) { els.forEach((e) => e.classList.add("in")); return; }
-    const io = new IntersectionObserver((entries) => {
-      for (const en of entries) if (en.isIntersecting) { (en.target as HTMLElement).classList.add("in"); io.unobserve(en.target); }
-    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
-    els.forEach((e) => io.observe(e));
-    return () => io.disconnect();
+    if (revealUsers++ === 0) startReveal();
+    else observeReveal(document);
+    return () => { if (--revealUsers === 0) stopReveal(); };
+  }, []);
+  useEffect(() => {
+    // re-scan on dependency change and again after the swap animation has settled
+    observeReveal(document);
+    const t1 = window.setTimeout(() => { observeReveal(document); flushStaleReveals(); }, 450);
+    const t2 = window.setTimeout(flushStaleReveals, 1200);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
   }, [dep]);
 }
 

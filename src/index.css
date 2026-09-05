@@ -184,3 +184,7 @@ mark { background: color-mix(in srgb, var(--acc) 35%, transparent); color: inher
   .rv { opacity: 1; transform: none; }
 }
 @media print { .no-print { display: none !important } body { background: #fff; color: #000 } }
+
+/* only the face that is showing should take clicks — WebKit hit-tests through hidden backfaces */
+.flip:not([data-flipped="true"]) .flip-back { pointer-events: none; }
+.flip[data-flipped="true"] .flip-face:not(.flip-back) { pointer-events: none; }

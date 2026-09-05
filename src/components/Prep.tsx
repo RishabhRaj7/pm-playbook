@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { TOPICS, topicById, type Quiz } from "@/data";
 import { FRAMEWORKS, MOCK_CATS, MOCK_QS, type MockCat, type MockQ } from "@/data/prep";
 import { useStore } from "@/lib/progress";
-import { useReveal } from "@/lib/hooks";
+import { replaceHash, useReveal } from "@/lib/hooks";
 import { Html } from "./Sections";
 import { Ring } from "./Paths";
 import { cn } from "@/utils/cn";
@@ -41,13 +41,18 @@ function useAccuracy() {
   }, [s.attempts]);
 }
 
+const isTab = (x: unknown): x is Tab => TABS.some((t) => t.id === x);
+
 export default function Prep({ go, tab: initial }: { go: Go; tab?: string | null }) {
-  const [tab, setTab] = useState<Tab>((TABS.some((t) => t.id === initial) ? initial : "drill") as Tab);
+  const [tab, setTabState] = useState<Tab>(isTab(initial) ? initial : "drill");
   const s = useStore();
   useReveal(tab);
   useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" }); }, []);
-  useEffect(() => { if (initial && TABS.some((t) => t.id === initial)) setTab(initial as Tab); }, [initial]);
-  useEffect(() => { history.replaceState(null, "", `#/prep/${tab}`); }, [tab]);
+  // URL → tab: links such as go("prep", "mock") from Home / the sidebar must always win
+  useEffect(() => { if (isTab(initial)) setTabState(initial); }, [initial]);
+  // tab → URL: keep the hash in step without pushing history, and notify the router
+  useEffect(() => { replaceHash(`#/prep/${tab}`); }, [tab]);
+  const setTab = (t: Tab) => { setTabState(t); if (t === tab) window.scrollTo({ top: 0, behavior: "smooth" }); };
   const acc = useAccuracy();
   const totals = Object.values(acc).reduce((b, x) => ({ right: b.right + x.right, total: b.total + x.total }), { right: 0, total: 0 });
   const pct = totals.total ? totals.right / totals.total : 0;
@@ -201,7 +206,7 @@ function Mock({ go }: { go: Go }) {
   };
   const log = () => { if (!q) return; const score = ticks.filter(Boolean).length; s.recordAttempt({ kind: "mock", topics: q.topics, score, total: q.rubric.length, durationMs: Date.now() - startedAt.current }); setLogged(true); };
   const note = q ? (s.notes[`mock:${q.id}`] ?? "") : "";
-  const fwDef = q ? FRAMEWORKS.find((f) => f.for.toLowerCase().startsWith(catDef(q.cat).label.split(" ")[0].toLowerCase())) : undefined;
+  const fwDef = q ? (FRAMEWORKS.find((f) => f.cat === q.cat) ?? FRAMEWORKS.find((f) => f.for.toLowerCase().startsWith(catDef(q.cat).label.split(" ")[0].toLowerCase()))) : undefined;
   const total = q ? catDef(q.cat).mins * 60 : 1;
 
   return (
@@ -243,13 +248,17 @@ function Mock({ go }: { go: Go }) {
               {!reveal ? <button className="btn btn-key" onClick={() => { setReveal(true); setRunning(false); }}>I’m done — show the rubric</button> : (
                 <>{!logged ? <button className="btn btn-key" onClick={log}>Log {ticks.filter(Boolean).length}/{q.rubric.length} →</button> : <span className="btn border-acc/50 text-acc">✓ Logged</span>}<button className="btn" onClick={() => draw()}>Next card</button></>
               )}
-              <button className="btn" onClick={() => { setQ(null); setRunning(false); }}>Back to categories</button>
+              <button className="btn" onClick={() => { setQ(null); setRunning(false); setReveal(false); setCat("all"); }}>Back to categories</button>
             </div>
           </div>
           <div className="space-y-4">
             <div className="card p-5">
               <button className="flex w-full items-center justify-between text-left" onClick={() => setFw((f) => !f)}><span className="font-mono text-[.6rem] uppercase tracking-[.2em] text-muted">Framework · <span className="text-text">{catDef(q.cat).fw}</span></span><span className="text-acc">{fw ? "−" : "+"}</span></button>
-              <AnimatePresence>{fw && fwDef && <motion.ol initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="m-0 mt-3 list-none space-y-1.5 overflow-hidden p-0">{fwDef.steps.map((st, k) => <li key={k} className="flex gap-3 text-[.84rem] text-dim"><span className="mono text-[.62rem] text-acc">0{k + 1}</span>{st}</li>)}</motion.ol>}</AnimatePresence>
+              <AnimatePresence initial={false}>{fw && (
+                <motion.div key="fw" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                  {fwDef ? <ol className="m-0 mt-3 list-none space-y-1.5 p-0">{fwDef.steps.map((st, k) => <li key={k} className="flex gap-3 text-[.84rem] text-dim"><span className="mono text-[.62rem] text-acc">0{k + 1}</span>{st}</li>)}</ol>
+                    : <p className="m-0 mt-3 text-[.84rem] text-dim">No step-by-step for this category yet — structure it as: clarify → decompose → decide → what would change your mind.</p>}
+                </motion.div>)}</AnimatePresence>
             </div>
             <AnimatePresence>{reveal && (
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="card p-5">
@@ -286,13 +295,26 @@ function Cards({ go }: { go: Go }) {
   useEffect(() => { setOrder(shuffle(buildDeck())); setI(0); setFlipped(false); }, [topic, mode]);
   const deck = useMemo(() => order.map((k) => deckAll.find((c) => c.key === k)!).filter(Boolean), [order, deckAll]);
   const card = deck[i];
+  const busy = useRef(false);
   const mark = (known: boolean) => {
-    if (!card) return;
+    if (!card || busy.current) return;
+    busy.current = true;
     const again = s.flash.again.filter((k) => k !== card.key), knownL = s.flash.known.filter((k) => k !== card.key);
     s.setFlash(known ? { again, known: [...knownL, card.key] } : { again: [...again, card.key], known: knownL });
-    setFlipped(false); setTimeout(() => setI((x) => x + 1), 120);
+    setFlipped(false); window.setTimeout(() => { setI((x) => x + 1); busy.current = false; }, 120);
   };
-  useEffect(() => { const on = (e: KeyboardEvent) => { if ((e.target as HTMLElement).tagName === "TEXTAREA") return; if (e.key === " ") { e.preventDefault(); setFlipped((f) => !f); } if (e.key === "ArrowRight" && flipped) mark(true); if (e.key === "ArrowLeft" && flipped) mark(false); }; window.addEventListener("keydown", on); return () => window.removeEventListener("keydown", on); });
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null; const tag = el?.tagName;
+      // let form fields and focused buttons keep their native behaviour
+      if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT" || tag === "BUTTON" || el?.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === " ") { e.preventDefault(); setFlipped((f) => !f); }
+      if (e.key === "ArrowRight" && flipped) mark(true);
+      if (e.key === "ArrowLeft" && flipped) mark(false);
+    };
+    window.addEventListener("keydown", on); return () => window.removeEventListener("keydown", on);
+  });
   const knownHere = deck.filter((c) => s.flash.known.includes(c.key)).length;
 
   return (
@@ -308,7 +330,7 @@ function Cards({ go }: { go: Go }) {
         <div>
           {card ? (
             <>
-              <div className="flip h-[320px] cursor-pointer sm:h-[360px]" data-flipped={flipped} onClick={() => setFlipped((f) => !f)}>
+              <div className="flip h-[320px] cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-acc/60 rounded-[18px] sm:h-[360px]" data-flipped={flipped} role="button" tabIndex={0} aria-pressed={flipped} aria-label={flipped ? "Hide definition" : "Reveal definition"} onClick={() => setFlipped((f) => !f)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setFlipped((f) => !f); } }}>
                 <div className="flip-inner h-full">
                   <div className="flip-face panel flex h-full flex-col p-7">
                     <div className="flex items-center justify-between"><span className="chip">{topicById(card.topic)?.n} · {topicById(card.topic)?.title}</span><span className="font-mono text-[.62rem] text-muted">{i + 1}/{order.length}</span></div>
