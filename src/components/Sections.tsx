@@ -356,7 +356,7 @@ export function Cheatsheet({ s, t }: { s: Section; t: Topic }) {
   const rows = (t.terms ?? []).filter((x) => !needle || (x.t + " " + x.d + " " + (x.c ?? "") + " " + x.g).toLowerCase().includes(needle.toLowerCase()));
   return (
     <Sec s={s}>
-      <SecHead s={s} t={t} right={<div className="flex items-end gap-2 no-print"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the sheet…" aria-label="Search the cheat sheet" className="field w-52 font-mono text-[.78rem]" /><button className="pill" onClick={() => window.print()}>Print</button></div>} />
+      <SecHead s={s} t={t} right={<div className="flex items-end gap-2 no-print"><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the sheet…" aria-label="Search the cheat sheet" className="field w-52 font-mono text-[.78rem]" /></div>} />
       <div className="rv thin max-h-[70vh] overflow-auto border-y border-rule">
         <table className="tbl"><thead className="sticky top-0 z-[1]"><tr><th>Term</th><th>Group</th><th>Meaning</th><th>{s.col3 ?? "Analogy"}</th></tr></thead>
           <tbody>{rows.map((x) => <tr key={x.t}><td><Html html={highlight(x.t, needle)} />{x.a && <span className="block text-[.72rem] font-normal text-muted">{x.a}</span>}</td><td className="whitespace-nowrap font-mono text-[.7rem]">{t.groups?.find((g) => g.id === x.g)?.label ?? x.g}</td><td><Html html={highlight(x.d, needle)} className="prose" /></td><td className="serif italic"><Html html={highlight(x.c ?? "", needle)} className="prose" /></td></tr>)}</tbody></table>
