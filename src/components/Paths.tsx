@@ -92,9 +92,12 @@ export function ResumeCard({ go }: { go: Go }) {
   const tp = s.topics[topic.id];
   const sec = tp?.lastSection ? topic.sections.find((x) => x.id === tp.lastSection)?.nav : null;
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-3 border-y border-rule py-3">
+    <div className="flex flex-col items-start gap-3 border-y border-rule py-4">
       <span className="kicker">{def ? `On your path · ${def.k}` : "Where you left off"}</span>
-      <span className="min-w-0 flex-1"><b className="serif text-[1.1rem] font-semibold">{topic.n} · {topic.title}</b><span className="ml-2 text-[.8rem] text-muted">{sec ? `at “${sec}”` : "from the top"}{tp?.updatedAt ? ` · ${ago(tp.updatedAt)}` : ""}</span></span>
+      <div className="w-full min-w-0">
+        <b className="serif block text-[1.2rem] font-semibold leading-snug">{topic.n} · {topic.title}</b>
+        <span className="mt-1 block text-[.8rem] text-muted">{sec ? `At “${sec}”` : "From the top"}{tp?.updatedAt ? ` · ${ago(tp.updatedAt)}` : ""}</span>
+      </div>
       {def && <Steps ids={def.ids} current={s.path?.current} />}
       <button className="btn btn-key !py-2" onClick={() => go(topic.id, "~resume")}>Resume →</button>
     </div>
