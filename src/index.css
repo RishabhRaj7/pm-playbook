@@ -137,6 +137,22 @@ kbd {
 .rv.in { opacity: 1; transform: none; }
 .rv.d1 { transition-delay: .06s } .rv.d2 { transition-delay: .12s } .rv.d3 { transition-delay: .18s } .rv.d4 { transition-delay: .24s }
 
+/* ---------- section rule that draws itself in ---------- */
+.draw { position: relative; }
+.draw::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--rule); transform: scaleX(0); transform-origin: left; transition: transform 1.1s var(--ease-out) .05s; }
+.draw.in::before { transform: scaleX(1); }
+
+/* ---------- inline glossary terms ---------- */
+.gl { color: inherit; text-decoration: underline dotted; text-decoration-color: var(--acc); text-underline-offset: 3px; text-decoration-thickness: 1.5px; cursor: help; border-radius: 1px; }
+.gl:hover, .gl:focus-visible { background: color-mix(in srgb, var(--acc) 12%, transparent); outline: none; }
+
+/* ---------- diagrams assemble when they scroll into view ---------- */
+.viz-body > * > * { animation: rise .55s var(--ease-out) both; }
+.rv:not(.in) .viz-body > * > * { animation-play-state: paused; }
+.viz-body > * > :nth-child(2) { animation-delay: .07s } .viz-body > * > :nth-child(3) { animation-delay: .14s }
+.viz-body > * > :nth-child(4) { animation-delay: .21s } .viz-body > * > :nth-child(5) { animation-delay: .28s }
+.viz-body > * > :nth-child(6) { animation-delay: .35s } .viz-body > * > :nth-child(n+7) { animation-delay: .42s }
+
 /* ---------- flip cards (terms, flashcards) ---------- */
 .flip { perspective: 1400px; }
 .flip-inner { position: relative; transform-style: preserve-3d; transition: transform .6s var(--ease-out); }

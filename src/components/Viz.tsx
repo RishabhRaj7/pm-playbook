@@ -16,7 +16,7 @@ export default function Viz({ viz, className }: { viz: VizT; className?: string 
   const body = render(viz, bind, note?.t ?? null);
   return (
     <div className={cn("viz", className)} onMouseLeave={() => setNote(null)}>
-      <div className="min-h-[120px]">{body}</div>
+      <div className="viz-body min-h-[120px]">{body}</div>
       <div className="mt-3 min-h-[3.2em] border-t border-line-soft pt-2 text-[.84rem] leading-snug text-dim" aria-live="polite">
         {note ? (<span className="rise block"><b className="text-text">{note.t}</b>{note.n ? <> — {note.n}</> : null}</span>) : <span className="font-mono text-[.62rem] uppercase tracking-[.12em] text-muted">Hover or tap a part of the diagram</span>}
       </div>

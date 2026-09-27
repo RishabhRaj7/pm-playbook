@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Chart } from "@/data";
 import { useInView } from "@/lib/hooks";
+import { IdentityLab, InterviewLab, PriceVolumeLab, RolloutLab, SlicingLab, StakeholderGrid, StrategySorter, WhysLadder } from "./Labs";
 
 /* ---------- shared slider ---------- */
 function Slider({ label, value, min, max, step = 1, fmt, onChange }: { label: string; value: number; min: number; max: number; step?: number; fmt?: (v: number) => string; onChange: (v: number) => void }) {
@@ -239,13 +240,19 @@ export function OkrTool() {
   );
 }
 
+const LABS: Record<string, () => React.JSX.Element> = {
+  interview: InterviewLab, "strategy-sort": StrategySorter, "price-volume": PriceVolumeLab, slicing: SlicingLab,
+  identity: IdentityLab, rollout: RolloutLab, whys: WhysLadder, stakeholders: StakeholderGrid,
+};
+
 export function ToolFor({ id }: { id: string }) {
   if (id === "sizing") return <SizingTool />;
   if (id === "funnel") return <FunnelTool />;
   if (id === "rice") return <RiceTool />;
   if (id === "okr") return <OkrTool />;
   if (id === "randomiser") return <Randomiser />;
-  return null;
+  const Lab = LABS[id];
+  return Lab ? <Lab /> : null;
 }
 
 /* ============ case-study charts ============ */

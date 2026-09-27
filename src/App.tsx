@@ -8,6 +8,7 @@ import TopicPage from "@/components/TopicPage";
 import Prep from "@/components/Prep";
 import Glossary from "@/components/Glossary";
 import Search from "@/components/Search";
+import GlossTip from "@/components/GlossTip";
 import { PathRail } from "@/components/Paths";
 import { SearchGlyph } from "@/components/Glyphs";
 import { cn } from "@/utils/cn";
@@ -113,6 +114,7 @@ function Shell() {
 
       <Colophon go={nav} />
       <Search open={searchOpen} onClose={() => setSearchOpen(false)} go={nav} />
+      <GlossTip go={nav} />
     </div>
   );
 }

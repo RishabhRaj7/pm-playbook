@@ -17,6 +17,7 @@ export interface TopicProgress {
   completedAt?: number;
   quizBest?: number;     // best score on the topic quiz
   quizTotal?: number;
+  gameBest?: number;     // best streak in the "name that term" drill
 }
 
 export interface PathState {

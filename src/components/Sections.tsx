@@ -1,14 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { stageOf, type Case, type Framework, type Section, type Step, type Term, type Topic } from "@/data";
 import Viz from "./Viz";
 import ParticleType from "./ParticleType";
 import { CaseChart, ToolFor } from "./Tools";
+import { NameThatTerm } from "./Drills";
+import { glossify } from "@/lib/gloss";
 import { useStore } from "@/lib/progress";
 import { cn } from "@/utils/cn";
 
 type Tag = "span" | "p" | "h1" | "h2" | "h3" | "h4" | "div";
-export const Html = ({ html, className, as: El = "span" }: { html?: string; className?: string; as?: Tag }) => <El className={className} dangerouslySetInnerHTML={{ __html: html ?? "" }} />;
+/** Trusted, authored HTML from topics.json. `gloss` turns known terms into hoverable definitions. */
+export const Html = ({ html, className, as: El = "span", gloss }: { html?: string; className?: string; as?: Tag; gloss?: boolean }) => <El className={className} dangerouslySetInnerHTML={{ __html: gloss ? glossify(html ?? "") : html ?? "" }} />;
 const sub = (s: string | undefined, t: Topic) => (s ?? "").replace("{N}", String(t.terms?.length ?? 0));
 
 /** Highlight `q` inside HTML without touching the tags themselves. */
@@ -21,7 +24,7 @@ function highlight(html: string, q: string) {
 export function SecHead({ s, t, right }: { s: Section; t: Topic; right?: React.ReactNode }) {
   const n = t.sections.indexOf(s) + 1;
   return (
-    <header className="rule mb-8 pt-4">
+    <header className="rv draw mb-8 pt-4">
       <p className="kicker rv flex flex-wrap gap-x-3"><span className="text-text">§ {String(n).padStart(2, "0")}</span>{s.eyebrow && <span>{s.eyebrow}</span>}</p>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0 max-w-3xl">
@@ -50,7 +53,7 @@ export function Hero({ s, t, onNext }: { s: Section; t: Topic; onNext: () => voi
         <ParticleType shapes={[[t.n], [st.roman]]} label={`Topic ${t.n}`} className="-ml-1 h-[7.5rem] w-[11rem] sm:h-[10rem] sm:w-[13rem] lg:h-[12rem] lg:w-auto" weight={600} align="left" breakAt={0} density={{ narrow: [3, 2], wide: [3, 2.1] }} />
         <div className="min-w-0">
           <Html as="h1" className="rise prose max-w-[18ch] text-[clamp(2.3rem,5.2vw,4.6rem)]" html={s.h} />
-          <Html as="p" className="lede rise prose mt-6" html={s.lede} />
+          <Html as="p" className="lede rise prose mt-6" html={s.lede} gloss />
           <p className="rise mt-5 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[.62rem] uppercase tracking-[.1em] text-muted">{s.chips?.map((c, i) => <span key={c}>{i > 0 && <span className="mr-4 text-line" aria-hidden>/</span>}{sub(c, t)}</span>)}</p>
           <div className="rise mt-6 flex flex-wrap gap-2">
             <button className="btn btn-key" onClick={() => document.getElementById(t.sections[1]?.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}>Start reading ↓</button>
@@ -84,7 +87,7 @@ export function BigIdea({ s, t }: { s: Section; t: Topic }) {
           <div key={i} className={cn("rv p-5", `d${i + 1}`)}>
             <span className="kicker text-acc">{c.k}</span>
             <h3 className="mt-2 text-[1.3rem]">{c.h}</h3>
-            <Html as="p" className="prose mb-0 mt-2 text-[.9rem] text-dim" html={c.p} />
+            <Html as="p" className="prose mb-0 mt-2 text-[.9rem] text-dim" html={c.p} gloss />
           </div>
         ))}
       </div>
@@ -177,6 +180,7 @@ export function Terms({ s, t, col3 }: { s: Section; t: Topic; col3?: string }) {
         </AnimatePresence>
       </motion.div>
       {!terms.length && <p className="font-mono text-sm text-muted">Nothing matches.</p>}
+      <NameThatTerm t={t} />
     </Sec>
   );
 }
@@ -203,20 +207,44 @@ function TermCard({ x, flipped, onFlip, col3, groupLabel }: { x: Term; flipped: 
 /* ---------- STEPS ---------- */
 export function Steps({ s, t }: { s: Section; t: Topic }) {
   const [open, setOpen] = useState<number | null>(0);
+  const list = useRef<HTMLOListElement>(null);
+  const spine = useRef<HTMLSpanElement>(null);
+  const [lit, setLit] = useState(-1);
+  // the spine fills as the reading line (40% down the screen) travels through the steps
+  useEffect(() => {
+    let raf = 0;
+    const on = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = list.current; if (!el) return;
+        const line = window.innerHeight * 0.4, r = el.getBoundingClientRect();
+        const k = Math.max(0, Math.min(1, (line - r.top) / r.height));
+        if (spine.current) spine.current.style.transform = `scaleY(${k})`;
+        const items = [...el.querySelectorAll<HTMLElement>(":scope > li")];
+        setLit(items.reduce((n, li, i) => (li.getBoundingClientRect().top < line ? i : n), -1));
+      });
+    };
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    window.addEventListener("resize", on);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", on); window.removeEventListener("resize", on); };
+  }, []);
   return (
     <Sec s={s}>
       <SecHead s={s} t={t} />
-      <ol className="m-0 list-none border-t border-line-soft p-0">
-        {t.steps?.map((st, i) => <StepItem key={i} st={st} i={i} open={open === i} onToggle={() => setOpen(open === i ? null : i)} />)}
+      <ol ref={list} className="relative m-0 list-none border-t border-line-soft p-0">
+        <span aria-hidden className="absolute bottom-0 left-[1.45rem] top-0 hidden w-px bg-line-soft sm:left-[2.2rem] sm:block" />
+        <span ref={spine} aria-hidden className="absolute bottom-0 left-[1.45rem] top-0 hidden w-[2px] origin-top -translate-x-[.5px] bg-acc sm:left-[2.2rem] sm:block" style={{ transform: "scaleY(0)" }} />
+        {t.steps?.map((st, i) => <StepItem key={i} st={st} i={i} lit={i <= lit} open={open === i} onToggle={() => setOpen(open === i ? null : i)} />)}
       </ol>
     </Sec>
   );
 }
-function StepItem({ st, i, open, onToggle }: { st: Step; i: number; open: boolean; onToggle: () => void }) {
+function StepItem({ st, i, open, lit, onToggle }: { st: Step; i: number; open: boolean; lit: boolean; onToggle: () => void }) {
   return (
     <li className="rv border-b border-line-soft">
       <button onClick={onToggle} aria-expanded={open} className="group grid w-full grid-cols-[3rem_1fr_auto] items-baseline gap-3 py-4 text-left sm:grid-cols-[4.5rem_1fr_auto]">
-        <span className={cn("serif text-[2rem] font-light leading-none transition-colors sm:text-[2.6rem]", open ? "text-acc" : "text-muted group-hover:text-text")}>{String(i + 1).padStart(2, "0")}</span>
+        <span className={cn("serif relative z-[1] bg-ink text-[2rem] font-light leading-none transition-colors duration-500 sm:text-[2.6rem]", open || lit ? "text-acc" : "text-muted group-hover:text-text")}>{String(i + 1).padStart(2, "0")}</span>
         <span><h3 className="text-[1.25rem]">{st.t}</h3>{st.out && <Html as="p" className="prose mb-0 mt-1 text-[.84rem] text-muted" html={"→ " + st.out} />}</span>
         <span className={cn("font-mono text-lg text-muted transition-transform", open && "rotate-45 text-acc")} aria-hidden>+</span>
       </button>
@@ -224,10 +252,10 @@ function StepItem({ st, i, open, onToggle }: { st: Step; i: number; open: boolea
         {open && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: .32, ease: [.22, .61, .36, 1] }} className="overflow-hidden">
             <div className="grid gap-5 pb-6 sm:pl-[5.25rem] lg:grid-cols-[1.3fr_1fr]">
-              <Html as="p" className="prose mb-0 text-[.95rem] leading-relaxed text-dim" html={st.b} />
+              <Html as="p" className="prose mb-0 text-[.95rem] leading-relaxed text-dim" html={st.b} gloss />
               <div className="space-y-3">
-                {st.do && <div className="border-l-2 border-a pl-3 text-[.86rem]"><span className="font-mono text-[.6rem] uppercase tracking-[.12em] text-a">Do this</span><Html as="p" className="prose mb-0 mt-1 text-dim" html={st.do} /></div>}
-                {st.no && <div className="border-l-2 border-bad pl-3 text-[.86rem]"><span className="font-mono text-[.6rem] uppercase tracking-[.12em] text-bad">Not this</span><Html as="p" className="prose mb-0 mt-1 text-dim" html={st.no} /></div>}
+                {st.do && <div className="border-l-2 border-a pl-3 text-[.86rem]"><span className="font-mono text-[.6rem] uppercase tracking-[.12em] text-a">Do this</span><Html as="p" className="prose mb-0 mt-1 text-dim" html={st.do} gloss /></div>}
+                {st.no && <div className="border-l-2 border-bad pl-3 text-[.86rem]"><span className="font-mono text-[.6rem] uppercase tracking-[.12em] text-bad">Not this</span><Html as="p" className="prose mb-0 mt-1 text-dim" html={st.no} gloss /></div>}
                 {st.snip && <pre className="thin m-0 overflow-x-auto border border-line-soft bg-ink-1 p-3 font-mono text-[.74rem] leading-relaxed text-dim">{st.snip}</pre>}
               </div>
             </div>
@@ -249,7 +277,7 @@ export function Visual({ s, t }: { s: Section; t: Topic }) {
             <span className="kicker text-acc">Fig. {i + 1} · {it.k}</span>
             <h3 className="mb-4 mt-1 text-[1.25rem]">{it.h}</h3>
             {it.viz && <Viz viz={it.viz} />}
-            {it.p && <Html as="p" className="prose mb-0 mt-3 text-[.88rem] text-dim" html={it.p} />}
+            {it.p && <Html as="p" className="prose mb-0 mt-3 text-[.88rem] text-dim" html={it.p} gloss />}
           </figure>
         ))}
       </div>
@@ -298,7 +326,7 @@ function CaseCard({ c }: { c: Case }) {
         <div>
           <div className="mb-3 flex flex-wrap gap-2"><span className="chip">{c.k}</span><span className={cn("chip", win ? "border-a/60 text-a" : "border-bad/60 text-bad")}>{c.badge ?? c.kind}</span></div>
           <h3 className="text-[1.7rem]">{c.title}</h3>
-          {c.sub && <Html as="p" className="prose serif mb-0 mt-2 text-[1.02rem] leading-snug text-dim" html={c.sub} />}
+          {c.sub && <Html as="p" className="prose serif mb-0 mt-2 text-[1.02rem] leading-snug text-dim" html={c.sub} gloss />}
         </div>
         {c.facts && <dl className="m-0 grid min-w-[260px] grid-cols-2 gap-x-6 gap-y-2 border-t border-rule pt-3">{c.facts.map(([k, v]) => <div key={k}><dt className="font-mono text-[.56rem] uppercase tracking-[.12em] text-muted">{k}</dt><dd className="mono m-0 text-[.88rem] text-text">{v}</dd></div>)}</dl>}
       </header>
@@ -307,14 +335,14 @@ function CaseCard({ c }: { c: Case }) {
         <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="btn">{open ? "Hide the walkthrough" : `Walk through it · ${c.steps?.length ?? 0} moves`}</button>
         <AnimatePresence initial={false}>
           {open && <motion.ol initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="m-0 mt-5 grid list-none gap-x-8 overflow-hidden border-t border-line-soft p-0 md:grid-cols-2">
-            {c.steps?.map(([k, v], i) => <li key={i} className="border-b border-line-soft py-3"><span className="font-mono text-[.6rem] uppercase tracking-[.12em] text-acc">{String(i + 1).padStart(2, "0")} · {k}</span><Html as="p" className="prose mb-0 mt-1 text-[.88rem] text-dim" html={v} /></li>)}
+            {c.steps?.map(([k, v], i) => <li key={i} className="border-b border-line-soft py-3"><span className="font-mono text-[.6rem] uppercase tracking-[.12em] text-acc">{String(i + 1).padStart(2, "0")} · {k}</span><Html as="p" className="prose mb-0 mt-1 text-[.88rem] text-dim" html={v} gloss /></li>)}
           </motion.ol>}
         </AnimatePresence>
       </div>
       {c.verdict && (
         <footer className={cn("relative grid gap-4 border-t p-6 md:grid-cols-[auto_1fr] md:items-center", win ? "border-a/40" : "border-bad/40")}>
           <span className={cn("stamp serif inline-block border-[3px] px-3 py-1 text-2xl font-bold uppercase tracking-tight", win ? "border-a text-a" : "border-bad text-bad")}>{c.verdict.stamp}</span>
-          <div><b className="serif text-[1.15rem] text-text">{c.verdict.h}</b><Html as="p" className="prose mb-0 mt-1 text-[.92rem] text-dim" html={c.verdict.p} />{c.verdict.lesson && <Html as="p" className="prose mb-0 mt-2 text-[.88rem] text-text" html={"<b>Lesson:</b> " + c.verdict.lesson} />}</div>
+          <div><b className="serif text-[1.15rem] text-text">{c.verdict.h}</b><Html as="p" className="prose mb-0 mt-1 text-[.92rem] text-dim" html={c.verdict.p} gloss />{c.verdict.lesson && <Html as="p" className="prose mb-0 mt-2 text-[.88rem] text-text" html={"<b>Lesson:</b> " + c.verdict.lesson} />}</div>
         </footer>
       )}
     </article>
@@ -374,7 +402,7 @@ export function QuizSec({ s, t }: { s: Section; t: Topic }) {
               </div>
               <AnimatePresence>{pick != null && (
                 <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={cn("mt-4 border-l-2 py-1 pl-4", pick === q.a ? "border-a" : "border-bad")} role="status">
-                  <b className={pick === q.a ? "text-a" : "text-bad"}>{pick === q.a ? "Correct." : "Not quite."}</b> <Html html={q.e} className="prose text-[.92rem] text-dim" />
+                  <b className={pick === q.a ? "text-a" : "text-bad"}>{pick === q.a ? "Correct." : "Not quite."}</b> <Html html={q.e} className="prose text-[.92rem] text-dim" gloss />
                   <div className="mt-3"><button className="btn btn-key" onClick={next}>{i + 1 >= qs.length ? "See result" : "Next question →"}</button></div>
                 </motion.div>)}</AnimatePresence>
             </motion.div>
@@ -407,6 +435,7 @@ export function Frameworks({ s, t }: { s: Section; t: Topic }) {
       <motion.div layout className="grid gap-3 md:grid-cols-2">
         <AnimatePresence>{list.map((f) => <FwCard key={f.name} f={f} open={open === f.name} onToggle={() => setOpen(open === f.name ? null : f.name)} />)}</AnimatePresence>
       </motion.div>
+      <NameThatTerm t={t} />
     </Sec>
   );
 }
@@ -423,11 +452,11 @@ function FwCard({ f, open, onToggle }: { f: Framework; open: boolean; onToggle: 
         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: .35, ease: [.22, .61, .36, 1] }} className="overflow-hidden">
           <div className="grid gap-6 border-t border-line-soft p-5 lg:grid-cols-2">
             <div className="space-y-4">
-              {f.when && <div><span className="kicker">Reach for it when</span><Html as="p" className="prose mb-0 mt-1 text-[.9rem] text-dim" html={f.when} /></div>}
-              {f.how && <div><span className="kicker">How</span><ol className="mb-0 mt-1 list-decimal space-y-1.5 pl-5 text-[.9rem] text-dim marker:font-mono marker:text-[.7rem] marker:text-acc">{f.how.map((h, i) => <li key={i}><Html html={h} className="prose" /></li>)}</ol></div>}
+              {f.when && <div><span className="kicker">Reach for it when</span><Html as="p" className="prose mb-0 mt-1 text-[.9rem] text-dim" html={f.when} gloss /></div>}
+              {f.how && <div><span className="kicker">How</span><ol className="mb-0 mt-1 list-decimal space-y-1.5 pl-5 text-[.9rem] text-dim marker:font-mono marker:text-[.7rem] marker:text-acc">{f.how.map((h, i) => <li key={i}><Html html={h} className="prose" gloss /></li>)}</ol></div>}
               {f.out && <div className="border-l-2 border-a pl-3"><span className="font-mono text-[.6rem] uppercase tracking-[.12em] text-a">You end up with</span><Html as="p" className="prose mb-0 mt-1 text-[.88rem] text-dim" html={f.out} /></div>}
-              {f.trap && <div className="border-l-2 border-bad pl-3"><span className="font-mono text-[.6rem] uppercase tracking-[.12em] text-bad">How it fails</span><Html as="p" className="prose mb-0 mt-1 text-[.88rem] text-dim" html={f.trap} /></div>}
-              {f.with && <div><span className="kicker">Pairs with</span><Html as="p" className="prose mb-0 mt-1 text-[.88rem] text-dim" html={f.with} /></div>}
+              {f.trap && <div className="border-l-2 border-bad pl-3"><span className="font-mono text-[.6rem] uppercase tracking-[.12em] text-bad">How it fails</span><Html as="p" className="prose mb-0 mt-1 text-[.88rem] text-dim" html={f.trap} gloss /></div>}
+              {f.with && <div><span className="kicker">Pairs with</span><Html as="p" className="prose mb-0 mt-1 text-[.88rem] text-dim" html={f.with} gloss /></div>}
             </div>
             <div className="space-y-4">
               {f.viz && <div className="border border-line-soft bg-ink p-4"><span className="kicker">The shape</span><div className="mt-3"><Viz viz={f.viz} /></div></div>}

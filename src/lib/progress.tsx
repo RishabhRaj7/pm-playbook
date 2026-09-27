@@ -32,6 +32,7 @@ interface Store {
   quitPath: () => void;
   setPathCurrent: (idx: number) => void;
   recordAttempt: (a: Omit<QuizAttempt, "at" | "id">) => void;
+  recordGame: (topic: string, streak: number) => void;
   setFlash: (f: FlashState) => void;
   setNote: (key: string, text: string) => void;
   reset: () => Promise<void>;
@@ -138,6 +139,10 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     if (a.kind === "topic" && a.topic) writeTopic(a.topic, (t) => ({ ...t, quizBest: Math.max(t.quizBest ?? 0, a.score), quizTotal: a.total }));
   }), [writeTopic, run]);
 
+  const recordGame = useCallback((topic: string, streak: number) => {
+    if (streak > (topicsRef.current[topic]?.gameBest ?? 0)) writeTopic(topic, (t) => ({ ...t, gameBest: Math.max(t.gameBest ?? 0, streak) }));
+  }, [writeTopic]);
+
   const setFlash = useCallback((f: FlashState) => run(() => { setFlashState(f); void db.set("flash", f); }), [run]);
   const setNote = useCallback((key: string, text: string) => run(() => {
     setNotes((n) => { const next = { ...n, [key]: text }; void db.set("notes", next); return next; });
@@ -166,8 +171,8 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     const pathDone = pathDef ? pathDef.ids.filter((id) => topics[id]?.completed).length : 0;
     const pathNext = pathDef ? (pathDef.ids.find((id) => !topics[id]?.completed) ?? null) : null;
     const lastTopic = Object.values(topics).filter((t) => t.visits > 0 && TOPICS.some((x) => x.id === t.id)).sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
-    return { ready, topics, path, attempts, flash, notes, pathDef, pathDone, pathNext, lastTopic, visit, position, complete, startPath, quitPath, setPathCurrent, recordAttempt, setFlash, setNote, reset, exportData, importData };
-  }, [ready, topics, path, attempts, flash, notes, visit, position, complete, startPath, quitPath, setPathCurrent, recordAttempt, setFlash, setNote, reset, exportData, importData]);
+    return { ready, topics, path, attempts, flash, notes, pathDef, pathDone, pathNext, lastTopic, visit, position, complete, startPath, quitPath, setPathCurrent, recordAttempt, recordGame, setFlash, setNote, reset, exportData, importData };
+  }, [ready, topics, path, attempts, flash, notes, visit, position, complete, startPath, quitPath, setPathCurrent, recordAttempt, recordGame, setFlash, setNote, reset, exportData, importData]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
