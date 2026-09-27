@@ -79,8 +79,8 @@ export function Randomiser() {
         <Read l="Verdict" v={n < 500 ? "too early" : sig ? "SHIP" : "keep waiting"} win={sig} />
       </div>
       <div className="mt-3 flex gap-2">
-        <button className="pill" onClick={() => setRun((r) => !r)}>{run ? "❚❚ Pause" : "▶ Resume"}</button>
-        <button className="pill" onClick={() => { setN(0); setCa(0); setCb(0); setRun(true); }}>↻ Reset</button>
+        <button className="pill" onClick={() => setRun((r) => !r)}>{run ? "Pause" : "Resume"}</button>
+        <button className="pill" onClick={() => { setN(0); setCa(0); setCb(0); setRun(true); }}>Reset</button>
       </div>
       <p className="mt-3 text-[.76rem] text-muted">True effect is +10% relative. Notice how long the interval straddles zero — and how tempting it is to call it early.</p>
     </div>
@@ -138,6 +138,8 @@ export function FunnelTool() {
   const act = Math.round(v.acq * v.act / 100), ret = Math.round(act * v.ret / 100), rev = Math.round(ret * v.rev / 100), ref = Math.round(rev * v.ref / 100);
   const rows = [["Acquisition", v.acq, 100], ["Activation", act, v.act], ["Retention", ret, v.ret], ["Revenue", rev, v.rev], ["Referral", ref, v.ref]] as const;
   const rates = [v.act, v.ret, v.rev, v.ref]; const leak = rates.indexOf(Math.min(...rates)) + 1;
+  // extra people at the bottom if the weakest rate rose by 10 points: the funnel is a product, so it scales by (r + 10) / r
+  const gain = Math.round(ref * (10 / rates[leak - 1]));
   return (
     <div className="panel p-5 grid gap-6 lg:grid-cols-[1fr_1.2fr]">
       <div className="space-y-4">
@@ -159,7 +161,7 @@ export function FunnelTool() {
         </div>
         <div className="mt-4 rounded-xl border border-bad/40 bg-bad/5 p-4">
           <span className="font-mono text-[.6rem] uppercase tracking-[.14em] text-bad">The leak</span>
-          <p className="mt-1 mb-0 text-[.86rem] text-dim">Your weakest step is <b className="text-text">{rows[leak][0].toLowerCase()}</b> at {rows[leak][2]}%. Lifting it by 10 points adds <b className="text-text">{Math.round((rows[leak - 1][1] * 0.10) * (leak < 4 ? rates.slice(leak).reduce((a, b) => a * b / 100, 1) : 1)).toLocaleString()}</b> more people to the bottom — more than doubling acquisition would, at this shape.</p>
+          <p className="mt-1 mb-0 text-[.86rem] text-dim">Your weakest step is <b className="text-text">{rows[leak][0].toLowerCase()}</b> at {rows[leak][2]}%. Lifting it by 10 points adds <b className="text-text">{gain.toLocaleString()}</b> people at the bottom of the funnel — a <b className="text-text">{Math.round((10 / rates[leak - 1]) * 100)}%</b> gain, the same as growing acquisition by that much. Ten points on your strongest step ({Math.max(...rates)}%) would be worth only {Math.round((10 / Math.max(...rates)) * 100)}%.</p>
         </div>
       </div>
     </div>

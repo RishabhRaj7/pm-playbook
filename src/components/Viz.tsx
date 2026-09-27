@@ -10,15 +10,17 @@ export default function Viz({ viz, className }: { viz: VizT; className?: string 
     onFocus: () => setNote({ t, n: n ?? undefined }),
     onClick: () => setNote({ t, n: n ?? undefined }),
     tabIndex: 0,
+    role: "button",
+    "aria-label": n ? `${t}: ${n}` : t,
   });
   const body = render(viz, bind, note?.t ?? null);
   return (
     <div className={cn("viz", className)} onMouseLeave={() => setNote(null)}>
       <div className="min-h-[120px]">{body}</div>
-      <div className="mt-3 min-h-[3.2em] rounded-lg border border-dashed border-line-soft bg-ink-2/60 px-3 py-2 text-[.82rem] leading-snug text-dim transition-colors">
-        {note ? (<span className="rise block"><b className="text-text">{note.t}</b>{note.n ? <> — {note.n}</> : null}</span>) : <span className="text-muted font-mono text-[.66rem] uppercase tracking-[.14em]">Hover or tap a part of the diagram</span>}
+      <div className="mt-3 min-h-[3.2em] border-t border-line-soft pt-2 text-[.84rem] leading-snug text-dim" aria-live="polite">
+        {note ? (<span className="rise block"><b className="text-text">{note.t}</b>{note.n ? <> — {note.n}</> : null}</span>) : <span className="font-mono text-[.62rem] uppercase tracking-[.12em] text-muted">Hover or tap a part of the diagram</span>}
       </div>
-      {viz.cap && <p className="mt-2 text-[.78rem] italic text-muted">{viz.cap}</p>}
+      {viz.cap && <p className="serif mt-2 text-[.84rem] italic text-muted">{viz.cap}</p>}
     </div>
   );
 }
@@ -26,7 +28,7 @@ export default function Viz({ viz, className }: { viz: VizT; className?: string 
 type Bind = (t: string, n?: string | null) => Record<string, unknown>;
 const hot = "cursor-pointer outline-none transition-all duration-200";
 const Box = ({ on, children, className, ...rest }: { on: boolean; children: ReactNode; className?: string } & Record<string, unknown>) => (
-  <div {...rest} className={cn("rounded-lg border px-3 py-2 text-[.8rem] leading-snug", hot, on ? "border-acc bg-ink-3 text-text shadow-[0_0_0_1px_var(--acc)]" : "border-line-soft bg-ink-1 text-dim hover:border-line hover:text-text", className)}>{children}</div>
+  <div {...rest} className={cn("rounded-lg border px-3 py-2 text-[.8rem] leading-snug", hot, on ? "border-acc bg-[color-mix(in_srgb,var(--acc)_9%,var(--ink-1))] text-text" : "border-line-soft bg-ink-1 text-dim hover:border-rule hover:text-text", className)}>{children}</div>
 );
 const Lbl = ({ children }: { children: ReactNode }) => <span className="font-mono text-[.58rem] uppercase tracking-[.16em] text-muted">{children}</span>;
 
@@ -69,8 +71,8 @@ function render(v: VizT, bind: Bind, act: string | null): ReactNode {
               return (
                 <g key={ci} {...bind(c.label, c.note)} className={hot}>
                   <path d={d} fill="none" stroke="transparent" strokeWidth={18} />
-                  <path d={d} fill="none" stroke={col} strokeWidth={on ? 3.5 : 2.2} strokeDasharray={c.dash ? "6 5" : undefined} pathLength={1} style={{ strokeDasharray: c.dash ? "0.02 0.015" : undefined, animation: "drawIn 1.6s var(--ease-out) both" }} strokeLinecap="round" />
-                  {!c.dash && pts.map((p: number[], i: number) => <circle key={i} cx={p[0]} cy={p[1]} r={on ? 4 : 3} fill={col} />)}
+                  <path d={d} fill="none" stroke={col} strokeWidth={on ? 3 : 1.8} pathLength={1} style={c.dash ? { strokeDasharray: "0.02 0.015" } : { strokeDasharray: 1, animation: "drawIn 1.6s var(--ease-out) both" }} strokeLinecap="round" />
+                  {!c.dash && pts.map((p: number[], i: number) => <rect key={i} x={p[0] - (on ? 3.5 : 2.5)} y={p[1] - (on ? 3.5 : 2.5)} width={on ? 7 : 5} height={on ? 7 : 5} fill={col} />)}
                   <text x={pts[pts.length - 1][0]} y={pts[pts.length - 1][1] - 8} textAnchor="end" fill={col} fontFamily="var(--f-mono)" fontSize="10" fontWeight={600}>{c.label} · {c.pts[c.pts.length - 1]}%</text>
                 </g>
               );
@@ -205,7 +207,7 @@ function render(v: VizT, bind: Bind, act: string | null): ReactNode {
       return (
         <div>
           {row(top, true)}
-          <div className="my-1 flex items-center gap-2"><div className="h-[2px] flex-1 bg-gradient-to-r from-transparent via-line to-acc" /><div {...bind(v.head, v.cap)} className={cn("rounded-lg border border-acc bg-ink-3 px-3 py-2 text-[.82rem] font-bold text-acc", hot)}>{v.head}</div></div>
+          <div className="my-1 flex items-center gap-2"><div className="h-px flex-1 bg-rule" /><div {...bind(v.head, v.cap)} className={cn("rounded-lg border border-acc bg-ink-3 px-3 py-2 text-[.82rem] font-bold text-acc", hot)}>{v.head}</div></div>
           {row(bot, false)}
         </div>
       );

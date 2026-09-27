@@ -1,20 +1,24 @@
 <!doctype html>
-<html lang="en" data-theme="night">
+<html lang="en" data-theme="day">
   <head>
     <script>
+      // Pick the edition before first paint: a saved choice wins, otherwise follow the system.
       (function () {
-        try {
-          var t = localStorage.getItem("pm:theme");
-          if (t === "day" || t === "night") document.documentElement.setAttribute("data-theme", t);
-        } catch (e) {}
+        var t = null;
+        try { t = localStorage.getItem("pm:theme"); } catch (e) {}
+        if (t !== "day" && t !== "night") t = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches ? "night" : "day";
+        document.documentElement.setAttribute("data-theme", t);
       })();
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#07080f" />
-    <meta name="description" content="A visual, self-contained reference for product managers: experimentation, discovery, metrics, prioritisation, strategy, specs, pricing, analytics, launch and 55 frameworks — with diagrams, worked examples, tools and quizzes." />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23C6FF3C'/><rect x='3' y='3' width='26' height='26' rx='5' fill='%2307080f'/><rect x='15' y='6' width='2' height='20' rx='1' fill='%23C6FF3C'/></svg>" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f3f0e9" />
+    <meta name="description" content="A reference for aspiring and working product managers: discovery, strategy, pricing, prioritisation, specs, analytics, metrics, experimentation and launch, plus 55 frameworks, a 215-term index, learning paths and an interview prep lab." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%232437d0'/><circle cx='16' cy='16' r='8' fill='none' stroke='%23f3f0e9' stroke-width='3'/><rect x='21' y='7' width='5' height='5' fill='%23f3f0e9'/></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..700&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap" />
     <title>The PM Playbook — product management, end to end</title>
   </head>
   <body>
