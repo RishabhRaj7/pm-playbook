@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { REDUCED } from "@/lib/hooks";
+import { cssVar, onInkChange } from "@/lib/particles";
 
 /* ============================================================
    THE QUARTER ENGINE — one planning quarter on a loop.
@@ -21,7 +22,6 @@ const NAMES = ["Bulk export", "SSO sync", "Dark mode", "Audit log", "New onboard
 
 type Idea = { name: string; value: number; effort: number; x: number; y: number; tx: number; ty: number; state: "new" | "in" | "out" | "bumped" | "shipped"; born: number; score: number };
 
-function cssVar(n: string) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 
 export default function QuarterEngine() {
   const cv = useRef<HTMLCanvasElement>(null);
@@ -36,6 +36,10 @@ export default function QuarterEngine() {
     const c = cv.current!, ctx = c.getContext("2d")!, w = wrap.current!;
     let W = 0, H = 0, dpr = 1;
     const resize = () => { dpr = Math.min(2, devicePixelRatio || 1); W = w.clientWidth; H = w.clientHeight; c.width = W * dpr; c.height = H * dpr; };
+    // ink is read when the edition changes, not every frame
+    const ink = () => ({ acc: cssVar("--acc"), bad: cssVar("--bad"), text: cssVar("--text"), muted: cssVar("--muted"), line: cssVar("--line"), signal: cssVar("--signal"), mono: cssVar("--f-mono") });
+    let C = ink();
+    const stopInk = onInkChange(() => { C = ink(); });
     resize(); const ro = new ResizeObserver(resize); ro.observe(w);
 
     let ideas: Idea[] = []; let ph = 0, pt = 0, q = 1; let totalShipped = 0, totalLost = 0; let capUsed = 0;
@@ -58,7 +62,6 @@ export default function QuarterEngine() {
 
     let ln = 0.0; // capacity line intercept sweep
     let raf = 0, last = performance.now();
-    const colors = () => ({ acc: cssVar("--acc"), bad: cssVar("--bad"), text: cssVar("--text"), muted: cssVar("--muted"), line: cssVar("--line"), a: cssVar("--a"), ink1: cssVar("--ink-1"), signal: cssVar("--signal") });
 
     const step = () => {
       // called on entering each phase
@@ -81,9 +84,7 @@ export default function QuarterEngine() {
       }
       if (ph === 5) {
         active.filter((i) => i.state === "in").forEach((i, k) => { i.state = "shipped"; totalShipped++; i.tx = W - PAD.r + 30 + (k % 3) * 28; i.ty = PAD.t + 30 + Math.floor(k / 3) * 26 + Math.random() * 6; });
-        ideas.filter((i) => i.state === "out" || i.state === "bumped").forEach((i) => { totalLost += i.state === "out" ? 0 : 0; });
       }
-      if (ph === 6) { /* review */ }
       if (ph === 0) { q++; setQuarter(q); newQuarter(); ln = 0; }
     };
 
@@ -93,12 +94,11 @@ export default function QuarterEngine() {
         pt += dt;
         if (pt >= PHASE_LEN[ph]) { pt = 0; ph = (ph + 1) % PHASES.length; step(); setPhase(ph); }
       }
-      const C = colors();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
       // axes
       ctx.strokeStyle = C.line; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(PAD.l, PAD.t); ctx.lineTo(PAD.l, H - PAD.b); ctx.lineTo(W - PAD.r, H - PAD.b); ctx.stroke();
-      ctx.fillStyle = C.muted; ctx.font = `600 9px ${cssVar("--f-mono")}`; ctx.textAlign = "left";
+      ctx.fillStyle = C.muted; ctx.font = `500 9px ${C.mono}`; ctx.textAlign = "left";
       ctx.fillText("EFFORT →", PAD.l + 4, H - PAD.b + 16);
       ctx.save(); ctx.translate(PAD.l - 12, H - PAD.b - 4); ctx.rotate(-Math.PI / 2); ctx.fillText("VALUE →", 0, 0); ctx.restore();
       // shipped column
@@ -117,7 +117,7 @@ export default function QuarterEngine() {
         const x0 = fx(0.4), y0 = fy(0.18), x1 = fx(1), y1 = fy(0.95);
         ctx.save(); ctx.strokeStyle = C.signal; ctx.lineWidth = 1.5; ctx.setLineDash([6, 5]);
         ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + (x1 - x0) * ln, y0 + (y1 - y0) * ln); ctx.stroke();
-        ctx.setLineDash([]); ctx.fillStyle = C.signal; ctx.textAlign = "right"; ctx.font = `600 9px ${cssVar("--f-mono")}`;
+        ctx.setLineDash([]); ctx.fillStyle = C.signal; ctx.textAlign = "right"; ctx.font = `500 9px ${C.mono}`;
         if (ln > 0.9) ctx.fillText("THE LINE · capacity", x1 - 4, y1 - 8);
         ctx.restore();
       }
@@ -126,44 +126,52 @@ export default function QuarterEngine() {
         if (i.state === "new" && pt < i.born && ph === 0) continue;
         const sp = 1 - Math.pow(0.001, dt);
         i.x += (i.tx - i.x) * sp * 1.4; i.y += (i.ty - i.y) * sp * 1.4;
-        if (i.state === "shipped") { /* drift toward column */ }
         let col = C.text, al = 0.9, r = 5;
         if (i.state === "in") { col = C.acc; r = 6; }
         if (i.state === "out") { col = C.muted; al = 0.4; r = 4; }
         if (i.state === "bumped") { col = C.bad; al = 0.8; r = 5; }
         if (i.state === "shipped") { col = C.acc; al = 0.85; r = 4; }
         ctx.save(); ctx.globalAlpha = al; ctx.fillStyle = col;
-        if (i.state === "in") { ctx.shadowBlur = 12; ctx.shadowColor = C.acc; }
-        ctx.beginPath(); ctx.arc(i.x, i.y, r, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.fillRect(i.x - r * 0.8, i.y - r * 0.8, r * 1.6, r * 1.6);
+        if (i.state === "in") { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.strokeRect(i.x - r * 1.5, i.y - r * 1.5, r * 3, r * 3); }
         if (i.state !== "shipped") {
-          ctx.font = `500 10px ${cssVar("--f-mono")}`; ctx.textAlign = "left"; ctx.fillStyle = col;
+          ctx.font = `500 10px ${C.mono}`; ctx.textAlign = "left"; ctx.fillStyle = col;
           ctx.fillText(ph >= 2 && ph <= 4 ? `${i.name} · ${i.score.toFixed(1)}` : i.name, i.x + 9, i.y + 3);
         }
         ctx.restore();
       }
       const active = ideas.filter((i) => i.state !== "shipped");
       const committed = active.filter((i) => i.state === "in").length;
-      if (Math.round(now / 250) % 2 === 0) setRead({ board: active.length, committed, cap: ph >= 1 ? Math.round((ph >= 3 ? capUsed : 0.4) * 100) : 0, shipped: totalShipped, lost: totalLost });
-      raf = requestAnimationFrame(draw);
+      if (now - lastRead > 250) {
+        lastRead = now;
+        const r = { board: active.length, committed, cap: ph >= 1 ? Math.round((ph >= 3 ? capUsed : 0.4) * 100) : 0, shipped: totalShipped, lost: totalLost };
+        setRead((o) => (o.board === r.board && o.committed === r.committed && o.cap === r.cap && o.shipped === r.shipped && o.lost === r.lost ? o : r));
+      }
+      raf = running ? requestAnimationFrame(draw) : 0;
     };
-    raf = requestAnimationFrame(draw);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    // only run while on screen
+    let running = false, lastRead = 0;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !running) { running = true; last = performance.now(); raf = requestAnimationFrame(draw); }
+      else if (!e.isIntersecting) { running = false; cancelAnimationFrame(raf); }
+    });
+    io.observe(w);
+    return () => { running = false; cancelAnimationFrame(raf); io.disconnect(); ro.disconnect(); stopInk(); };
   }, []);
 
   return (
-    <div className="panel overflow-hidden">
+    <figure className="panel m-0 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line-soft px-4 py-3">
-        <span className="font-mono text-[.62rem] uppercase tracking-[.2em] text-muted">Prioritisation engine</span>
-        <b className="font-mono text-[.72rem] font-semibold text-acc">quarter {String(quarter).padStart(2, "0")} · {PHASES[phase].label.toLowerCase()}</b>
+        <span className="kicker">The prioritisation engine</span>
+        <b className="font-mono text-[.68rem] font-medium uppercase tracking-[.08em] text-acc">Q{String(quarter).padStart(2, "0")} · {PHASES[phase].label}</b>
       </div>
-      <div className="flex gap-1 px-4 pt-3">
+      <div className="flex gap-[3px] px-4 pt-3" aria-hidden>
         {PHASES.map((p, i) => (
-          <i key={p.id} className="h-1 flex-1 rounded-full transition-all duration-500" style={{ background: i === phase ? "var(--acc)" : i < phase ? "color-mix(in srgb, var(--acc) 40%, transparent)" : "var(--line-soft)" }} title={p.label} />
+          <i key={p.id} className="h-[3px] flex-1 transition-colors duration-500" style={{ background: i === phase ? "var(--acc)" : i < phase ? "var(--text)" : "var(--line-soft)" }} title={p.label} />
         ))}
       </div>
-      <p key={phase} className="rise px-4 pt-3 text-[.92rem] text-dim min-h-[2.8em]">
-        <b className="font-mono text-[.66rem] uppercase tracking-[.16em] text-text mr-2">{PHASES[phase].label}</b>{PHASES[phase].say}
+      <p key={phase} className="rise serif min-h-[2.8em] px-4 pt-3 text-[1rem] leading-snug text-dim" aria-live="polite">
+        <b className="mr-2 font-mono text-[.64rem] font-medium uppercase tracking-[.12em] text-text">{PHASES[phase].label}</b>{PHASES[phase].say}
       </p>
       <div ref={wrap} className="relative h-[300px] sm:h-[340px]"><canvas ref={cv} className="absolute inset-0 h-full w-full" aria-label="Animated simulation of one planning quarter" /></div>
       <div className="grid grid-cols-2 gap-px border-t border-line-soft bg-line-soft sm:grid-cols-5">
@@ -171,15 +179,15 @@ export default function QuarterEngine() {
           ["On the board", read.board], ["Committed", read.committed, true], ["Capacity used", read.cap + "%"], ["Shipped, all time", read.shipped, true], ["Bumped or slipped", read.lost],
         ].map(([l, v, win]) => (
           <div key={String(l)} className="bg-ink-1 px-4 py-3">
-            <span className="block font-mono text-[.58rem] uppercase tracking-[.14em] text-muted">{l}</span>
-            <b className={"font-mono text-xl font-bold " + (win ? "text-acc" : "text-text")}>{v}</b>
+            <span className="block font-mono text-[.56rem] uppercase tracking-[.1em] text-muted">{l}</span>
+            <b className={"serif text-[1.5rem] font-semibold " + (win ? "text-acc" : "text-text")}>{v}</b>
           </div>
         ))}
       </div>
       <div className="flex items-center justify-between border-t border-line-soft px-4 py-2">
-        <span className="font-mono text-[.6rem] text-muted">~16s per quarter · loops forever</span>
-        <button onClick={() => setPaused((p) => !p)} className="pill">{paused ? "▶ Play" : "❚❚ Pause"}</button>
+        <figcaption className="font-mono text-[.6rem] uppercase tracking-[.08em] text-muted">Fig. 2 · ~16s per quarter, on a loop</figcaption>
+        <button onClick={() => setPaused((p) => !p)} className="pill">{paused ? "Play" : "Pause"}</button>
       </div>
-    </div>
+    </figure>
   );
 }

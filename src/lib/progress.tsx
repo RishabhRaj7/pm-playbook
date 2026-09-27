@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { db, type PathState, type QuizAttempt, type TopicProgress } from "./db";
-import { PATHS, pathById } from "@/data/paths";
+import { db, isSnapshot, type PathState, type QuizAttempt, type Snapshot, type TopicProgress } from "./db";
+import { pathById } from "@/data/paths";
 import { TOPICS } from "@/data";
 
 /* ============================================================
@@ -32,9 +32,12 @@ interface Store {
   quitPath: () => void;
   setPathCurrent: (idx: number) => void;
   recordAttempt: (a: Omit<QuizAttempt, "at" | "id">) => void;
+  recordGame: (topic: string, streak: number) => void;
   setFlash: (f: FlashState) => void;
   setNote: (key: string, text: string) => void;
   reset: () => Promise<void>;
+  exportData: () => Snapshot;
+  importData: (raw: unknown) => Promise<boolean>;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -56,27 +59,34 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   const pending = useRef<(() => void)[]>([]);
   const run = useCallback((fn: () => void) => { if (readyRef.current) fn(); else pending.current.push(fn); }, []);
 
+  const load = useCallback(async () => {
+    const [ts, p, at, fl, no] = await Promise.all([
+      db.allTopics(), db.get<PathState>("path"), db.allAttempts(), db.get<FlashState>("flash"), db.get<Record<string, string>>("notes"),
+    ]);
+    return { ts, p, at, fl, no };
+  }, []);
+  const apply = useCallback(({ ts, p, at, fl, no }: Awaited<ReturnType<typeof load>>) => {
+    topicsRef.current = Object.fromEntries(ts.map((t) => [t.id, t]));
+    pathRef.current = p && pathById(p.id) ? p : null;
+    setTopics(topicsRef.current);
+    setPath(pathRef.current);
+    setAttempts(at);
+    setFlashState(fl ?? { again: [], known: [] });
+    setNotes(no ?? {});
+  }, []);
+
   // hydrate
   useEffect(() => {
     let live = true;
-    (async () => {
-      const [ts, p, at, fl, no] = await Promise.all([
-        db.allTopics(), db.get<PathState>("path"), db.allAttempts(), db.get<FlashState>("flash"), db.get<Record<string, string>>("notes"),
-      ]);
+    void load().then((data) => {
       if (!live) return;
-      topicsRef.current = Object.fromEntries(ts.map((t) => [t.id, t]));
-      pathRef.current = p && pathById(p.id) ? p : null;
-      setTopics(topicsRef.current);
-      setPath(pathRef.current);
-      setAttempts(at);
-      if (fl) setFlashState(fl);
-      if (no) setNotes(no);
+      apply(data);
       readyRef.current = true;
       const q = pending.current; pending.current = []; q.forEach((fn) => fn());
       setReady(true);
-    })();
+    });
     return () => { live = false; };
-  }, []);
+  }, [load, apply]);
 
   const writeTopic = useCallback((id: string, fn: (t: TopicProgress) => TopicProgress) => run(() => {
     const cur = topicsRef.current[id] ?? blank(id);
@@ -97,11 +107,12 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     if (p && def) { const i = def.ids.indexOf(topic); if (i >= 0 && i !== p.current) writePath({ ...p, current: i, updatedAt: Date.now() }); }
   }, [writeTopic, writePath]);
 
-  // debounced position writes (scroll fires a lot)
-  const posTimer = useRef<number | null>(null);
+  // debounced position writes (scroll fires a lot) — one timer per topic, so leaving a
+  // page mid-debounce still saves where you were on it
+  const posTimers = useRef<Record<string, number>>({});
   const position = useCallback((topic: string, section: string | null, scrollY: number) => {
-    if (posTimer.current) window.clearTimeout(posTimer.current);
-    posTimer.current = window.setTimeout(() => {
+    window.clearTimeout(posTimers.current[topic]);
+    posTimers.current[topic] = window.setTimeout(() => {
       writeTopic(topic, (t) => {
         const seen = section && !t.seen.includes(section) ? [...t.seen, section] : t.seen;
         return { ...t, lastSection: section, scrollY: Math.round(scrollY), seen };
@@ -128,6 +139,10 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     if (a.kind === "topic" && a.topic) writeTopic(a.topic, (t) => ({ ...t, quizBest: Math.max(t.quizBest ?? 0, a.score), quizTotal: a.total }));
   }), [writeTopic, run]);
 
+  const recordGame = useCallback((topic: string, streak: number) => {
+    if (streak > (topicsRef.current[topic]?.gameBest ?? 0)) writeTopic(topic, (t) => ({ ...t, gameBest: Math.max(t.gameBest ?? 0, streak) }));
+  }, [writeTopic]);
+
   const setFlash = useCallback((f: FlashState) => run(() => { setFlashState(f); void db.set("flash", f); }), [run]);
   const setNote = useCallback((key: string, text: string) => run(() => {
     setNotes((n) => { const next = { ...n, [key]: text }; void db.set("notes", next); return next; });
@@ -138,13 +153,26 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
     topicsRef.current = {}; setTopics({}); writePath(null); setAttempts([]); setFlashState({ again: [], known: [] }); setNotes({});
   }, [writePath]);
 
+  const exportData = useCallback((): Snapshot => ({
+    app: "pm-playbook", version: 1, exportedAt: Date.now(),
+    topics: Object.values(topicsRef.current), attempts,
+    kv: { ...(pathRef.current ? { path: pathRef.current } : {}), flash, notes },
+  }), [attempts, flash, notes]);
+
+  const importData = useCallback(async (raw: unknown) => {
+    if (!isSnapshot(raw)) return false;
+    await db.restore(raw);
+    apply(await load());
+    return true;
+  }, [apply, load]);
+
   const value = useMemo<Store>(() => {
     const pathDef = pathById(path?.id);
     const pathDone = pathDef ? pathDef.ids.filter((id) => topics[id]?.completed).length : 0;
     const pathNext = pathDef ? (pathDef.ids.find((id) => !topics[id]?.completed) ?? null) : null;
     const lastTopic = Object.values(topics).filter((t) => t.visits > 0 && TOPICS.some((x) => x.id === t.id)).sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null;
-    return { ready, topics, path, attempts, flash, notes, pathDef, pathDone, pathNext, lastTopic, visit, position, complete, startPath, quitPath, setPathCurrent, recordAttempt, setFlash, setNote, reset };
-  }, [ready, topics, path, attempts, flash, notes, visit, position, complete, startPath, quitPath, setPathCurrent, recordAttempt, setFlash, setNote, reset]);
+    return { ready, topics, path, attempts, flash, notes, pathDef, pathDone, pathNext, lastTopic, visit, position, complete, startPath, quitPath, setPathCurrent, recordAttempt, recordGame, setFlash, setNote, reset, exportData, importData };
+  }, [ready, topics, path, attempts, flash, notes, visit, position, complete, startPath, quitPath, setPathCurrent, recordAttempt, recordGame, setFlash, setNote, reset, exportData, importData]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -155,4 +183,3 @@ export function useStore() {
   return s;
 }
 
-export { PATHS };

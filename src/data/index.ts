@@ -39,28 +39,35 @@ export interface Topic {
 }
 
 export const TOPICS = raw as unknown as Topic[];
+export const stripTags = (s?: string) => (s ?? "").replace(/<[^>]+>/g, "");
+const strip = stripTags;
 
-export const STAGES: { id: StageId; label: string; note: string; hue: number }[] = [
-  { id: "discover", label: "Discover", note: "find what is true", hue: 172 },
-  { id: "define", label: "Define", note: "choose the bet", hue: 262 },
-  { id: "decide", label: "Prioritise", note: "pick the order", hue: 38 },
-  { id: "build", label: "Build", note: "make it real", hue: 200 },
-  { id: "measure", label: "Measure", note: "learn honestly", hue: 330 },
-  { id: "land", label: "Land", note: "make it stick", hue: 92 },
+export const STAGES: { id: StageId; label: string; note: string; roman: string }[] = [
+  { id: "discover", label: "Discover", note: "find what is true", roman: "I" },
+  { id: "define", label: "Define", note: "choose the bet", roman: "II" },
+  { id: "decide", label: "Prioritise", note: "pick the order", roman: "III" },
+  { id: "build", label: "Build", note: "make it real", roman: "IV" },
+  { id: "measure", label: "Measure", note: "learn honestly", roman: "V" },
+  { id: "land", label: "Land", note: "make it stick", roman: "VI" },
 ];
 
 export const stageOf = (id: StageId) => STAGES.find((s) => s.id === id)!;
 export const topicById = (id: string) => TOPICS.find((t) => t.id === id);
 export const topicIndex = (id: string) => TOPICS.findIndex((t) => t.id === id);
 
+/* spot inks: `d` prints on the day edition's paper, `n` on the night edition's black */
 export const ACCENTS = [
-  { id: "lime", name: "Lime", n: "#C6FF3C", d: "#3F6B00" },
-  { id: "ice", name: "Ice", n: "#3DE1FF", d: "#00647F" },
-  { id: "amber", name: "Amber", n: "#FFB627", d: "#7F4C00" },
-  { id: "coral", name: "Coral", n: "#FF5C9E", d: "#B00058" },
-  { id: "violet", name: "Violet", n: "#B98CFF", d: "#5628C4" },
-  { id: "mint", name: "Mint", n: "#3FE0B0", d: "#007056" },
+  { id: "cobalt", name: "Cobalt", n: "#8F9BFF", d: "#2437D0" },
+  { id: "vermilion", name: "Vermilion", n: "#FF7A57", d: "#C2361A" },
+  { id: "forest", name: "Forest", n: "#6FD3A0", d: "#1D6A47" },
+  { id: "ochre", name: "Ochre", n: "#F0B545", d: "#8A5D00" },
+  { id: "ink", name: "Ink only", n: "#EBE7DC", d: "#151411" },
 ];
+
+/** Core curriculum (01–09, one lap of the loop) vs the three framework libraries (10–12). */
+export const isLibrary = (t: Topic) => t.id.startsWith("fw-");
+export const CORE = TOPICS.filter((t) => !isLibrary(t));
+export const LIBRARY = TOPICS.filter(isLibrary);
 
 /* ---------- aggregate stats ---------- */
 export const STATS = (() => {
@@ -84,7 +91,6 @@ export interface SearchHit {
 }
 export const SEARCH_INDEX: SearchHit[] = (() => {
   const out: SearchHit[] = [];
-  const strip = (s?: string) => (s ?? "").replace(/<[^>]+>/g, "");
   for (const t of TOPICS) {
     out.push({ kind: "Topic", title: `${t.n} · ${t.title}`, sub: t.one, topic: t.id, topicTitle: t.title, anchor: "start", hay: `${t.title} ${t.one}`.toLowerCase() });
     for (const s of t.sections) if (s.type !== "hero")
@@ -118,4 +124,28 @@ export function search(q: string, limit = 24): SearchHit[] {
   }).filter(Boolean) as { h: SearchHit; sc: number }[];
   scored.sort((a, b) => b.sc - a.sc);
   return scored.slice(0, limit).map((x) => x.h);
+}
+
+/* ---------- the index: every term and framework, A to Z ---------- */
+export interface Sense { topic: string; kind: "Term" | "Framework"; alias?: string; d: string; anchor: string }
+export interface Entry { head: string; key: string; letter: string; senses: Sense[] }
+export const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+export const GLOSSARY: Entry[] = (() => {
+  const map = new Map<string, Entry>();
+  const add = (head: string, s: Sense) => {
+    const key = slug(head);
+    const e = map.get(key) ?? { head, key, letter: /^[a-z]/i.test(head) ? head[0].toUpperCase() : "#", senses: [] };
+    e.senses.push(s); map.set(key, e);
+  };
+  for (const t of TOPICS) {
+    for (const x of t.terms ?? []) add(x.t, { topic: t.id, kind: "Term", alias: x.a, d: x.d, anchor: "terms" });
+    for (const f of t.frameworks ?? []) add(f.name, { topic: t.id, kind: "Framework", alias: f.alias, d: f.one, anchor: "frameworks" });
+  }
+  return [...map.values()].sort((a, b) => a.head.localeCompare(b.head, "en", { sensitivity: "base" }));
+})();
+/** A stable "term of the day" — the same for everyone on a given date. */
+export function termOfTheDay(date = new Date()): Entry {
+  const k = date.getFullYear() * 372 + date.getMonth() * 31 + date.getDate();
+  const terms = GLOSSARY.filter((e) => e.senses.some((s) => s.kind === "Term"));
+  return terms[(k * 2654435761) % terms.length >>> 0] ?? GLOSSARY[0];
 }

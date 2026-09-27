@@ -17,6 +17,7 @@ export interface TopicProgress {
   completedAt?: number;
   quizBest?: number;     // best score on the topic quiz
   quizTotal?: number;
+  gameBest?: number;     // best streak in the "name that term" drill
 }
 
 export interface PathState {
@@ -39,6 +40,16 @@ export interface QuizAttempt {
 }
 
 export interface KV { key: string; value: unknown }
+
+/** Portable copy of everything the playbook remembers — for moving browsers or keeping a backup. */
+export interface Snapshot { app: "pm-playbook"; version: 1; exportedAt: number; topics: TopicProgress[]; attempts: QuizAttempt[]; kv: Record<string, unknown> }
+
+export function isSnapshot(x: unknown): x is Snapshot {
+  const s = x as Snapshot;
+  return !!s && s.app === "pm-playbook" && s.version === 1 && Array.isArray(s.topics) && Array.isArray(s.attempts) && typeof s.kv === "object" && s.kv !== null
+    && s.topics.every((t) => t && typeof t.id === "string" && Array.isArray(t.seen))
+    && s.attempts.every((a) => a && typeof a.score === "number" && typeof a.total === "number" && typeof a.at === "number");
+}
 
 interface PMDB extends DBSchema {
   topics: { key: string; value: TopicProgress };
@@ -99,6 +110,24 @@ export const db = {
   async del(key: string) {
     const d = await open();
     if (d) await d.delete("kv", key); else mem.kv.delete(key);
+  },
+  /** Replace everything with a previously exported snapshot. */
+  async restore(snap: Snapshot) {
+    await this.wipe();
+    const d = await open();
+    if (d) {
+      const tx = d.transaction(["topics", "attempts", "kv"], "readwrite");
+      await Promise.all([
+        ...snap.topics.map((t) => tx.objectStore("topics").put(t)),
+        ...snap.attempts.map(({ id: _id, ...a }) => tx.objectStore("attempts").add(a as QuizAttempt)),
+        ...Object.entries(snap.kv).map(([key, value]) => tx.objectStore("kv").put({ key, value })),
+        tx.done,
+      ]);
+      return;
+    }
+    snap.topics.forEach((t) => mem.topics.set(t.id, t));
+    snap.attempts.forEach(({ id: _id, ...a }) => mem.attempts.push({ ...a, id: mem.nextId++ }));
+    Object.entries(snap.kv).forEach(([k, v]) => mem.kv.set(k, v));
   },
   async wipe() {
     const d = await open();

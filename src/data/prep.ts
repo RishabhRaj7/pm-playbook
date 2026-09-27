@@ -1,12 +1,12 @@
 export type MockCat = "sense" | "execution" | "strategy" | "estimation" | "behavioral" | "technical";
 
-export const MOCK_CATS: { id: MockCat; label: string; hue: number; mins: number; fw: string; blurb: string }[] = [
-  { id: "sense", label: "Product sense", hue: 262, mins: 8, fw: "CIRCLES", blurb: "Design or improve a product. They are grading how you pick a user and a problem before a solution." },
-  { id: "execution", label: "Execution & metrics", hue: 330, mins: 6, fw: "Metric tree → hypotheses → test", blurb: "Diagnose a drop, pick a north star, design a test. They are grading structure and honesty about causality." },
-  { id: "strategy", label: "Strategy", hue: 38, mins: 7, fw: "Where to play / how to win", blurb: "Should X enter Y? They are grading whether your strategy says no to something." },
-  { id: "estimation", label: "Estimation", hue: 200, mins: 5, fw: "Decompose → anchor → sanity-check", blurb: "Fermi problems. They are grading the decomposition and whether you sanity-check the answer, not the number." },
-  { id: "behavioral", label: "Behavioural", hue: 172, mins: 4, fw: "STAR + the lesson", blurb: "Tell me about a time. They are grading ownership, judgement and whether you actually learned something." },
-  { id: "technical", label: "Technical", hue: 92, mins: 5, fw: "Explain → trade-off → decision", blurb: "How would you build it? They are grading whether you can hold a trade-off with an engineer." },
+export const MOCK_CATS: { id: MockCat; label: string; mins: number; fw: string; blurb: string }[] = [
+  { id: "sense", label: "Product sense", mins: 8, fw: "CIRCLES", blurb: "Design or improve a product. They are grading how you pick a user and a problem before a solution." },
+  { id: "execution", label: "Execution & metrics", mins: 6, fw: "Metric tree → hypotheses → test", blurb: "Diagnose a drop, pick a north star, design a test. They are grading structure and honesty about causality." },
+  { id: "strategy", label: "Strategy", mins: 7, fw: "Where to play / how to win", blurb: "Should X enter Y? They are grading whether your strategy says no to something." },
+  { id: "estimation", label: "Estimation", mins: 5, fw: "Decompose → anchor → sanity-check", blurb: "Fermi problems. They are grading the decomposition and whether you sanity-check the answer, not the number." },
+  { id: "behavioral", label: "Behavioural", mins: 4, fw: "STAR + the lesson", blurb: "Tell me about a time. They are grading ownership, judgement and whether you actually learned something." },
+  { id: "technical", label: "Technical", mins: 5, fw: "Explain → trade-off → decision", blurb: "How would you build it? They are grading whether you can hold a trade-off with an engineer." },
 ];
 
 export interface MockQ { id: string; cat: MockCat; q: string; probe?: string; rubric: string[]; trap: string; topics: string[] }

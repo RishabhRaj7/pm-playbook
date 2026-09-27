@@ -1,29 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ACCENTS } from "@/data";
 
+/* ---------- storage that never throws ----------
+   Safari private mode, blocked cookies and sandboxed iframes all make
+   `localStorage` throw on access. Preferences are nice-to-have, so a
+   failure here must never take the page down with it. */
+export const store = {
+  get(k: string): string | null { try { return window.localStorage.getItem(k); } catch { return null; } },
+  set(k: string, v: string) { try { window.localStorage.setItem(k, v); } catch { /* preference not saved */ } },
+};
+
 /* ---------- routing: #/topic-id/section ---------- */
 export interface Route { topic: string | null; anchor: string | null }
 
 export function parseHash(h = window.location.hash): Route {
-  const m = h.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const m = h.replace(/^#\/?/, "").split("/").filter(Boolean).map((x) => { try { return decodeURIComponent(x); } catch { return x; } });
   if (!m.length || m[0] === "home") return { topic: null, anchor: m[1] ?? null };
   return { topic: m[0], anchor: m[1] ?? null };
 }
 
 export function useRoute() {
-  const [route, setRoute] = useState<Route>(() => {
-    if (!window.location.hash) {
-      const last = localStorage.getItem("pm:last-route");
-      if (last) history.replaceState(null, "", last);
-    }
-    return parseHash();
-  });
+  const [route, setRoute] = useState<Route>(() => parseHash());
   useEffect(() => {
-    const on = () => {
-      const r = parseHash();
-      setRoute(r);
-      localStorage.setItem("pm:last-route", window.location.hash || "#/");
-    };
+    const on = () => setRoute(parseHash());
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);
   }, []);
@@ -52,47 +51,60 @@ export function replaceHash(h: string) {
   catch { window.dispatchEvent(new Event("hashchange")); }
 }
 
-export function scrollToId(id: string, offset = 84) {
+export function scrollToId(id: string, offset = 72) {
   const el = document.getElementById(id);
   if (!el) return;
   const top = el.getBoundingClientRect().top + window.scrollY - offset;
-  window.scrollTo({ top, behavior: "smooth" });
+  window.scrollTo({ top, behavior: REDUCED ? "auto" : "smooth" });
 }
 
 /* ---------- theme + accent ---------- */
+export type Theme = "day" | "night";
 function applyAccent(id: string) {
   const a = ACCENTS.find((x) => x.id === id) ?? ACCENTS[0];
-  const day = document.documentElement.getAttribute("data-theme") === "day";
-  const acc = day ? a.d : a.n;
-  document.documentElement.style.setProperty("--acc", acc);
-  setFavicon(acc, day ? "#ffffff" : "#07080f");
+  const night = document.documentElement.getAttribute("data-theme") === "night";
+  const acc = night ? a.n : a.d;
+  const root = document.documentElement.style;
+  root.setProperty("--acc", acc);
+  // the "ink only" accent is the text colour itself, so text set on it must flip to paper
+  root.setProperty("--acc-ink", night ? "#0e0e0d" : "#f7f4ee");
+  setFavicon(acc, night ? "#0e0e0d" : "#f3f0e9");
 }
 
-/* favicon + theme-color follow the accent */
-export function setFavicon(acc: string, ink: string) {
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='${acc}'/><rect x='3' y='3' width='26' height='26' rx='5' fill='${ink}'/><rect x='15' y='6' width='2' height='20' rx='1' fill='${acc}'/></svg>`;
-  const href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+/* favicon + theme-color follow the accent and the edition */
+function setFavicon(acc: string, paper: string) {
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='${acc}'/><circle cx='16' cy='16' r='8' fill='none' stroke='${paper}' stroke-width='3'/><rect x='21' y='7' width='5' height='5' fill='${paper}'/></svg>`;
   let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
   if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
   link.type = "image/svg+xml";
-  link.href = href;
+  link.href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
   let meta = document.querySelector<HTMLMetaElement>("meta[name='theme-color']");
   if (!meta) { meta = document.createElement("meta"); meta.name = "theme-color"; document.head.appendChild(meta); }
-  meta.content = ink;
+  meta.content = paper;
 }
 export function useTheme() {
-  const [theme, setTheme] = useState<"night" | "day">(() => (localStorage.getItem("pm:theme") as any) || "night");
-  const [accent, setAccent] = useState<string>(() => localStorage.getItem("pm:accent") || "lime");
+  // index.html has already resolved saved choice vs. system preference before first paint
+  const [theme, setTheme] = useState<Theme>(() => (document.documentElement.getAttribute("data-theme") === "night" ? "night" : "day"));
+  const [accent, setAccent] = useState<string>(() => { const a = store.get("pm:accent"); return ACCENTS.some((x) => x.id === a) ? a! : ACCENTS[0].id; });
+  const chosen = useRef(store.get("pm:theme") != null);
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("pm:theme", theme);
+    if (chosen.current) store.set("pm:theme", theme);
     applyAccent(accent);
   }, [theme, accent]);
-  useEffect(() => { localStorage.setItem("pm:accent", accent); }, [accent]);
-  return { theme, setTheme, toggle: () => setTheme((t) => (t === "night" ? "day" : "night")), accent, setAccent };
+  useEffect(() => { store.set("pm:accent", accent); }, [accent]);
+  // until the reader picks an edition, follow the system as it changes (e.g. at sunset)
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!mq) return;
+    const on = () => { if (!chosen.current) setTheme(mq.matches ? "night" : "day"); };
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, []);
+  const toggle = () => { chosen.current = true; setTheme((t) => (t === "night" ? "day" : "night")); };
+  return { theme, toggle, accent, setAccent };
 }
 
-/* ---------- scroll reveal (.rv -> .in) ---------- */
 /* ---------- scroll reveal ----------
    `.rv` elements start invisible and get `.in` once they scroll into view.
    Content is frequently mounted *after* the owning component's effect has
@@ -172,13 +184,13 @@ export function useScrollSpy(ids: string[]) {
     const on = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const y = window.scrollY + 140;
         let cur = ids[0];
         for (const id of ids) {
           const el = document.getElementById(id);
-          if (el && el.offsetTop <= y) cur = id;
+          if (el && el.getBoundingClientRect().top <= 140) cur = id;
         }
-        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 4) cur = ids[ids.length - 1];
+        const h = document.documentElement;
+        if (window.innerHeight + window.scrollY >= h.scrollHeight - 4) cur = ids[ids.length - 1];
         setActive(cur);
       });
     };
@@ -204,28 +216,6 @@ export function useProgress() {
     return () => { window.removeEventListener("scroll", on); window.removeEventListener("resize", on); };
   }, []);
   return p;
-}
-
-/* ---------- count-up ---------- */
-export function useCountUp(target: number, duration = 1200, start = true) {
-  const [v, setV] = useState(0);
-  const ref = useRef<number>(0);
-  useEffect(() => {
-    if (!start) return;
-    const t0 = performance.now();
-    const from = ref.current;
-    let raf = 0;
-    const tick = (t: number) => {
-      const k = Math.min(1, (t - t0) / duration);
-      const e = 1 - Math.pow(1 - k, 3);
-      const val = Math.round(from + (target - from) * e);
-      setV(val); ref.current = val;
-      if (k < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration, start]);
-  return v;
 }
 
 export function useInView<T extends HTMLElement>(threshold = 0.3) {
